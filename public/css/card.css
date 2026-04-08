@@ -1,0 +1,123 @@
+.dashboard-page {
+    animation: fadeInUp 0.7s ease;
+}
+
+.section-title-wrap {
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-weight: 700;
+    color: #2e3a59;
+    margin-bottom: 6px;
+}
+
+.section-subtitle {
+    color: #7b8aaa;
+    margin-bottom: 0;
+}
+
+.dashboard-divider {
+    border-top: 2px solid #e3e6f0;
+    margin: 10px 0 25px 0;
+}
+
+.dashboard-card {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 22px 20px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 120px;
+    box-shadow: 0 10px 25px rgba(58, 59, 69, 0.08);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid #edf1f7;
+    position: relative;
+    overflow: hidden;
+}
+
+.dashboard-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #4e73df, #36b9cc);
+}
+
+.dashboard-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 16px 35px rgba(58, 59, 69, 0.16);
+}
+
+.dashboard-icon {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #4e73df, #224abe);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 24px;
+    transition: transform 0.3s ease;
+}
+
+.dashboard-card:hover .dashboard-icon {
+    transform: scale(1.08) rotate(4deg);
+}
+
+.dashboard-info h5 {
+    margin-bottom: 6px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #2f3542;
+}
+
+.dashboard-info p {
+    margin-bottom: 0;
+    color: #6c757d;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.transaksi-card .dashboard-icon {
+    background: linear-gradient(135deg, #1cc88a, #13855c);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-card {
+        padding: 18px 16px;
+        min-height: auto;
+    }
+
+    .dashboard-icon {
+        width: 54px;
+        height: 54px;
+        min-width: 54px;
+        font-size: 20px;
+    }
+
+    .dashboard-info h5 {
+        font-size: 16px;
+    }
+
+    .dashboard-info p {
+        font-size: 13px;
+    }
+}
