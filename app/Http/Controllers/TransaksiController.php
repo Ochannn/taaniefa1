@@ -16,7 +16,11 @@ class TransaksiController extends Controller
             ->get();
 
         $barangs = DB::table('master_barang')
+<<<<<<< HEAD
             ->select('kode_barang', 'nama_barang', 'kapasitas')
+=======
+            ->select('kode_barang', 'nama_barang')
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             ->orderBy('nama_barang')
             ->get();
 
@@ -386,6 +390,10 @@ class TransaksiController extends Controller
             ], 500);
         }
     }
+<<<<<<< HEAD
+=======
+    // TRANSAKSI PEMBELIAN SELESAI
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
 
     private function getCustomerAktifByUser()
     {
@@ -430,6 +438,7 @@ class TransaksiController extends Controller
         return false;
     }
 
+<<<<<<< HEAD
     private function isAdminRole($kodeRole)
     {
         return in_array($kodeRole, ['KRL001', 'KRL002']);
@@ -469,6 +478,9 @@ class TransaksiController extends Controller
 
         return $query->first();
     }
+=======
+    // TRANSAKSI PENJUALAN
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
 
     public function penjualan()
     {
@@ -476,13 +488,21 @@ class TransaksiController extends Controller
         $customerAktif = $this->getCustomerAktifByUser();
 
         $barangs = DB::table('master_barang')
+<<<<<<< HEAD
             ->select('kode_barang', 'nama_barang', 'harga_jual', 'kapasitas')
+=======
+            ->select('kode_barang', 'nama_barang', 'harga_jual')
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             ->orderBy('nama_barang')
             ->get();
 
         $customers = collect();
 
+<<<<<<< HEAD
         if ($this->isAdminRole($user->kode_role)) {
+=======
+        if ($user->kode_role === 'KRL001' || $user->kode_role === 'KRL002') {
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             $customers = DB::table('master_customer')
                 ->select('kode_customer', 'nama_customer')
                 ->orderBy('nama_customer')
@@ -505,6 +525,10 @@ class TransaksiController extends Controller
         $rules = [
             'tgl_pesanan'             => 'required|date',
             'jenis_pesanan'           => 'required|string',
+<<<<<<< HEAD
+=======
+            'status_pesanan'          => 'required|string',
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             'alamat_kirim_pesanan'    => 'nullable|string',
             'ongkir_pesanan'          => 'required|numeric|min:0',
             'catatan_pesanan'         => 'nullable|string',
@@ -514,9 +538,14 @@ class TransaksiController extends Controller
             'items.*.qty'             => 'required|numeric|min:1',
         ];
 
+<<<<<<< HEAD
         if ($this->isAdminRole($user->kode_role)) {
             $rules['kode_customer'] = 'required|string|exists:master_customer,kode_customer';
             $rules['status_pesanan'] = 'required|string';
+=======
+        if ($user->kode_role === 'KRL001' || $user->kode_role === 'KRL002') {
+            $rules['kode_customer'] = 'required|string|exists:master_customer,kode_customer';
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
         }
 
         $request->validate($rules);
@@ -528,7 +557,11 @@ class TransaksiController extends Controller
             ], 422);
         }
 
+<<<<<<< HEAD
         if ($this->isCustomerRole($user->kode_role)) {
+=======
+        if ($user->kode_role === 'KRL003') {
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             $customerAktif = $this->getCustomerAktifByUser();
 
             if (!$customerAktif || empty($customerAktif->kode_customer)) {
@@ -539,6 +572,7 @@ class TransaksiController extends Controller
             }
 
             $kodeCustomer = $customerAktif->kode_customer;
+<<<<<<< HEAD
             $statusPesanan = 'Pending';
         } else {
             $kodeCustomer = $request->kode_customer;
@@ -547,6 +581,14 @@ class TransaksiController extends Controller
 
         try {
             DB::transaction(function () use ($request, $kodeCustomer, $statusPesanan, &$kodePesanan, &$totalDetail, &$grandTotal) {
+=======
+        } else {
+            $kodeCustomer = $request->kode_customer;
+        }
+
+        try {
+            DB::transaction(function () use ($request, $kodeCustomer, &$kodePesanan, &$totalDetail, &$grandTotal) {
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                 $kodePesanan = $this->generateKodePesananLocked();
                 $totalDetail = 0;
 
@@ -577,10 +619,13 @@ class TransaksiController extends Controller
                         throw new \Exception("Barang {$item['kode_barang']} tidak ditemukan.");
                     }
 
+<<<<<<< HEAD
                     if ((float) $barang->kapasitas <= 0) {
                         throw new \Exception("Barang {$item['kode_barang']} stok tidak tersedia.");
                     }
 
+=======
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                     if ((float) $barang->kapasitas < $qty) {
                         throw new \Exception("Stok barang {$item['kode_barang']} tidak mencukupi.");
                     }
@@ -610,7 +655,11 @@ class TransaksiController extends Controller
                     'tgl_pesanan'          => $request->tgl_pesanan,
                     'kode_customer'        => $kodeCustomer,
                     'jenis_pesanan'        => $request->jenis_pesanan,
+<<<<<<< HEAD
                     'status_pesanan'       => $statusPesanan,
+=======
+                    'status_pesanan'       => $request->status_pesanan,
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                     'alamat_kirim_pesanan' => $request->alamat_kirim_pesanan,
                     'ongkir_pesanan'       => (float) $request->ongkir_pesanan,
                     'catatan_pesanan'      => $request->catatan_pesanan,
@@ -638,9 +687,13 @@ class TransaksiController extends Controller
 
     public function listPenjualan()
     {
+<<<<<<< HEAD
         $user = Auth::user();
 
         $query = DB::table('transaksi_penjualan as tp')
+=======
+        $data = DB::table('transaksi_penjualan as tp')
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             ->leftJoin('master_customer as mc', 'tp.kode_customer', '=', 'mc.kode_customer')
             ->select(
                 'tp.kode_pesanan',
@@ -649,6 +702,7 @@ class TransaksiController extends Controller
                 'mc.nama_customer',
                 'tp.jenis_pesanan',
                 'tp.status_pesanan'
+<<<<<<< HEAD
             );
 
         if ($this->isCustomerRole($user->kode_role)) {
@@ -662,6 +716,9 @@ class TransaksiController extends Controller
         }
 
         $data = $query
+=======
+            )
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             ->orderByDesc('tp.tgl_pesanan')
             ->orderByDesc('tp.kode_pesanan')
             ->get();
@@ -671,14 +728,36 @@ class TransaksiController extends Controller
 
     public function showPenjualan($kode_pesanan)
     {
+<<<<<<< HEAD
         $user = Auth::user();
 
         $header = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
+=======
+        $header = DB::table('transaksi_penjualan as tp')
+            ->leftJoin('master_customer as mc', 'tp.kode_customer', '=', 'mc.kode_customer')
+            ->select(
+                'tp.kode_pesanan',
+                'tp.tgl_pesanan',
+                'tp.kode_customer',
+                'mc.nama_customer',
+                'tp.jenis_pesanan',
+                'tp.status_pesanan',
+                'tp.alamat_kirim_pesanan',
+                'tp.ongkir_pesanan',
+                'tp.catatan_pesanan'
+            )
+            ->where('tp.kode_pesanan', $kode_pesanan)
+            ->first();
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
 
         if (!$header) {
             return response()->json([
                 'success' => false,
+<<<<<<< HEAD
                 'message' => 'Data penjualan tidak ditemukan atau Anda tidak memiliki akses.'
+=======
+                'message' => 'Data penjualan tidak ditemukan.'
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             ], 404);
         }
 
@@ -697,7 +776,10 @@ class TransaksiController extends Controller
             'success' => true,
             'header'  => $header,
             'details' => $details,
+<<<<<<< HEAD
             'can_edit' => $this->isAdminRole($user->kode_role) || $header->status_pesanan === 'Pending',
+=======
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
         ]);
     }
 
@@ -708,6 +790,10 @@ class TransaksiController extends Controller
         $rules = [
             'tgl_pesanan'             => 'required|date',
             'jenis_pesanan'           => 'required|string',
+<<<<<<< HEAD
+=======
+            'status_pesanan'          => 'required|string',
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             'alamat_kirim_pesanan'    => 'nullable|string',
             'ongkir_pesanan'          => 'required|numeric|min:0',
             'catatan_pesanan'         => 'nullable|string',
@@ -717,9 +803,14 @@ class TransaksiController extends Controller
             'items.*.qty'             => 'required|numeric|min:1',
         ];
 
+<<<<<<< HEAD
         if ($this->isAdminRole($user->kode_role)) {
             $rules['kode_customer'] = 'required|string|exists:master_customer,kode_customer';
             $rules['status_pesanan'] = 'required|string';
+=======
+        if ($user->kode_role === 'KRL001' || $user->kode_role === 'KRL002') {
+            $rules['kode_customer'] = 'required|string|exists:master_customer,kode_customer';
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
         }
 
         $request->validate($rules);
@@ -731,6 +822,7 @@ class TransaksiController extends Controller
             ], 422);
         }
 
+<<<<<<< HEAD
         $headerAkses = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
 
         if (!$headerAkses) {
@@ -748,6 +840,9 @@ class TransaksiController extends Controller
         }
 
         if ($this->isCustomerRole($user->kode_role)) {
+=======
+        if ($user->kode_role === 'KRL003') {
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
             $customerAktif = $this->getCustomerAktifByUser();
 
             if (!$customerAktif || empty($customerAktif->kode_customer)) {
@@ -758,6 +853,7 @@ class TransaksiController extends Controller
             }
 
             $kodeCustomer = $customerAktif->kode_customer;
+<<<<<<< HEAD
             $statusPesanan = $headerAkses->status_pesanan;
         } else {
             $kodeCustomer = $request->kode_customer;
@@ -766,6 +862,14 @@ class TransaksiController extends Controller
 
         try {
             DB::transaction(function () use ($request, $kode_pesanan, $kodeCustomer, $statusPesanan, &$totalDetail, &$grandTotal) {
+=======
+        } else {
+            $kodeCustomer = $request->kode_customer;
+        }
+
+        try {
+            DB::transaction(function () use ($request, $kode_pesanan, $kodeCustomer, &$totalDetail, &$grandTotal) {
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                 $header = DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
                     ->lockForUpdate()
@@ -819,10 +923,13 @@ class TransaksiController extends Controller
                         throw new \Exception("Barang {$item['kode_barang']} tidak ditemukan.");
                     }
 
+<<<<<<< HEAD
                     if ((float) $barang->kapasitas <= 0) {
                         throw new \Exception("Barang {$item['kode_barang']} stok tidak tersedia.");
                     }
 
+=======
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                     if ((float) $barang->kapasitas < $qty) {
                         throw new \Exception("Stok barang {$item['kode_barang']} tidak mencukupi untuk proses update.");
                     }
@@ -853,7 +960,11 @@ class TransaksiController extends Controller
                         'tgl_pesanan'          => $request->tgl_pesanan,
                         'kode_customer'        => $kodeCustomer,
                         'jenis_pesanan'        => $request->jenis_pesanan,
+<<<<<<< HEAD
                         'status_pesanan'       => $statusPesanan,
+=======
+                        'status_pesanan'       => $request->status_pesanan,
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
                         'alamat_kirim_pesanan' => $request->alamat_kirim_pesanan,
                         'ongkir_pesanan'       => (float) $request->ongkir_pesanan,
                         'catatan_pesanan'      => $request->catatan_pesanan,
@@ -881,6 +992,7 @@ class TransaksiController extends Controller
 
     public function deletePenjualan($kode_pesanan)
     {
+<<<<<<< HEAD
         $user = Auth::user();
 
         $headerAkses = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
@@ -899,6 +1011,8 @@ class TransaksiController extends Controller
             ], 403);
         }
 
+=======
+>>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
         try {
             DB::transaction(function () use ($kode_pesanan) {
                 $header = DB::table('transaksi_penjualan')
