@@ -2,7 +2,7 @@
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
                     <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; Your Website 2021</span>
+                        <span>Copyright &copy; CV. Syavir Jaya Utama</span>
                     </div>
                 </div>
             </footer>
@@ -51,6 +51,8 @@
     <script src="https://cdn.datatables.net/2.3.7/js/dataTables.min.js"></script>
     <script src="{{ asset('js/style.js') }}"></script>
     <script src="{{ asset('js/master.js') }}"></script>
+    <script src="{{ asset('js/transaksi_pembelian.js') }}"></script>
+    <script src="{{ asset('js/transaksi_penjualan.js') }}"></script>
 
 
 

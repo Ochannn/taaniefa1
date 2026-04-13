@@ -126,7 +126,7 @@
         <div class="row">
             @if($user->isAdmin() || $user->isKaryawan())
             <div class="col-lg-6 col-md-6 col-sm-12 mb-4">
-                <div class="dashboard-card transaksi-card" onclick="window.location.href='{{ route('transaksi.pembelian') }}'">
+               <div class="dashboard-card transaksi-card" onclick="loadContent('{{ route('ajax.transaksi.pembelian') }}')">
                     <div class="dashboard-icon"><i class="fas fa-cart-plus"></i></div>
                     <div class="dashboard-info">
                         <h5>Transaksi Pembelian</h5>
@@ -138,7 +138,7 @@
 
             @if($user->isAdmin() || $user->isKaryawan() || $user->isCustomer())
             <div class="col-lg-6 col-md-6 col-sm-12 mb-4">
-                <div class="dashboard-card transaksi-card" onclick="window.location.href='{{ route('transaksi.penjualan') }}'">
+                <div class="dashboard-card transaksi-card" onclick="loadContent('{{ route('ajax.transaksi.penjualan') }}')">
                     <div class="dashboard-icon"><i class="fas fa-cash-register"></i></div>
                     <div class="dashboard-info">
                         <h5>Transaksi Penjualan</h5>

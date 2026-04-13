@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -35,15 +37,26 @@ class AuthController extends Controller
             'password.confirmed' => 'Konfirmasi password tidak sama.',
         ]);
 
-        $kodeUser = $this->generateKodeUser();
+        DB::transaction(function () use ($request) {
+            $kodeUser = $this->generateKodeUser();
 
-        User::create([
-            'kode_user' => $kodeUser,
-            'kode_role' => 'KRL003',
-            'nama_user' => $request->username,
-            'email_user' => $request->email,
-            'pw_user' => $request->password,
-        ]);
+            $user = User::create([
+                'kode_user' => $kodeUser,
+                'kode_role' => 'KRL003',
+                'nama_user' => $request->username,
+                'email_user' => $request->email,
+                'pw_user' => $request->password,
+            ]);
+
+            Customer::create([
+                'kode_customer' => $this->generateKodeCustomer(),
+                'kode_user' => $user->kode_user,
+                'nama_customer' => $request->username,
+                'nohp_customer' => '',
+                'alamat_customer' => '',
+                'email_customer' => $request->email,
+            ]);
+        });
 
         return redirect()->route('login')->with('success', 'Akun berhasil dibuat.');
     }
@@ -87,6 +100,61 @@ class AuthController extends Controller
         return redirect()->route('login');
     }
 
+    public function customerProfile()
+    {
+        $customer = Customer::where('kode_user', Auth::user()->kode_user)->first();
+
+        if (!$customer) {
+            abort(404, 'Data customer tidak ditemukan.');
+        }
+
+        return view('master.master_customer', compact('customer'));
+    }
+
+    public function updateCustomerProfile(Request $request)
+    {
+        $customer = Customer::where('kode_user', Auth::user()->kode_user)->first();
+
+        if (!$customer) {
+            return response()->json([
+                'message' => 'Data customer tidak ditemukan.'
+            ], 404);
+        }
+
+        $request->validate([
+            'nama_customer' => 'required|string|max:100',
+            'nohp_customer' => 'nullable|string|max:20',
+            'alamat_customer' => 'nullable|string|max:255',
+            'email_customer' => 'required|email|max:100|unique:master_customer,email_customer,' . $customer->kode_customer . ',kode_customer',
+        ], [
+            'nama_customer.required' => 'Nama customer wajib diisi.',
+            'email_customer.required' => 'Email wajib diisi.',
+            'email_customer.email' => 'Format email tidak valid.',
+            'email_customer.unique' => 'Email sudah digunakan.',
+        ]);
+
+        DB::transaction(function () use ($request, $customer) {
+            $customer->update([
+                'nama_customer' => $request->nama_customer,
+                'nohp_customer' => $request->nohp_customer ?? '',
+                'alamat_customer' => $request->alamat_customer ?? '',
+                'email_customer' => $request->email_customer,
+            ]);
+
+            User::where('kode_user', $customer->kode_user)->update([
+                'email_user' => $request->email_customer,
+            ]);
+        });
+
+        if ($request->ajax()) {
+            return response()->json([
+                'message' => 'Data anda telah tersimpan.'
+            ]);
+        }
+
+        return back()->with('success', 'Data anda telah tersimpan.');
+    }
+
     private function generateKodeUser()
     {
         $lastUser = User::orderBy('kode_user', 'desc')->first();
@@ -99,5 +167,19 @@ class AuthController extends Controller
         $newNumber = $lastNumber + 1;
 
         return 'KUSR' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function generateKodeCustomer()
+    {
+        $lastCustomer = Customer::orderBy('kode_customer', 'desc')->first();
+
+        if (!$lastCustomer) {
+            return 'KCS001';
+        }
+
+        $lastNumber = (int) substr($lastCustomer->kode_customer, 3);
+        $newNumber = $lastNumber + 1;
+
+        return 'KCS' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
     }
 }

@@ -1,0 +1,86 @@
+    .purchase-card {
+        border: 1px solid #e3e6f0;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        background: #fff;
+        margin-bottom: 1.5rem;
+    }
+
+    .purchase-card .card-header {
+        background: linear-gradient(135deg, #f8f9fc, #eef2ff);
+        font-weight: 700;
+        color: #2e3a59;
+        border-bottom: 1px solid #e3e6f0;
+        padding: 1rem 1.25rem;
+    }
+
+    .purchase-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .soft-readonly {
+        background-color: #f8f9fc !important;
+        font-weight: 600;
+    }
+
+    .detail-table-wrapper {
+        border: 1px solid #e3e6f0;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .detail-table-wrapper table {
+        margin-bottom: 0;
+    }
+
+    .detail-table-wrapper thead th {
+        background: #f1f3f9;
+        border-bottom: 1px solid #dbe2ef;
+        white-space: nowrap;
+    }
+
+    .detail-table-wrapper tbody tr {
+        transition: all 0.25s ease;
+        animation: fadeInUp 0.25s ease;
+    }
+
+    .detail-table-wrapper tbody tr:hover {
+        background: #f8fbff;
+        transform: translateY(-1px);
+    }
+
+    .summary-box {
+        background: #f8f9fc;
+        border: 1px solid #e3e6f0;
+        border-radius: 14px;
+        padding: 1rem;
+    }
+
+    .summary-label {
+        font-weight: 700;
+        color: #4e5969;
+    }
+
+    .summary-value {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1d3557;
+    }
+
+    .btn-soft-primary {
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }

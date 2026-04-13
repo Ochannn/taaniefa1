@@ -15,10 +15,12 @@
     <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link href="{{ asset('vendor/fontawesome-free/css/all.min.css') }}" rel="stylesheet" type="text/css">
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Custom styles for this template-->
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.css" />
     <link href="{{ asset('css/style.css') }}" rel="stylesheet">
     <link href="{{ asset('css/card.css') }}" rel="stylesheet">
+    <link href="{{ asset('css/transaksi.css') }}" rel="stylesheet">
 
 <style>
 
@@ -85,16 +87,17 @@ table.dataTable td {
                 <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Daftar Master:</h6>
-
+                        <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'barang']) }}'); return false;">Master Barang</a>
+                        <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'kategori']) }}'); return false;">Master Kategori</a>
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'jenis-palet']) }}'); return false;">Master Jenis Palet</a>
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'kualitas']) }}'); return false;">Master Kualitas</a>
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'satuan']) }}'); return false;">Master Satuan</a>
-                        <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'kategori']) }}'); return false;">Master Kategori</a>
+                        <hr class="sidebar-divider" style="background-color: #b9b9b9" >
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'role']) }}'); return false;">Master Role</a>
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'user']) }}'); return false;">Master User</a>
+                        <hr class="sidebar-divider" style="background-color: #b9b9b9" >
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'supplier']) }}'); return false;">Master Supplier</a>
                         <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'karyawan']) }}'); return false;">Master Karyawan</a>
-                        <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.master.index', ['module' => 'barang']) }}'); return false;">Master Barang</a>
                     </div>
                 </div>
             </li>
@@ -112,11 +115,15 @@ table.dataTable td {
                         <h6 class="collapse-header">Daftar Transaksi:</h6>
 
                         @if($user->isAdmin() || $user->isKaryawan())
-                            <a class="collapse-item" href="{{ route('transaksi.pembelian') }}">Transaksi Pembelian</a>
+                            <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.transaksi.pembelian') }}'); return false;">
+                                Transaksi Pembelian
+                            </a>
                         @endif
 
-                        @if($user->isAdmin() || $user->isKaryawan() || $user->isCustomer())
-                            <a class="collapse-item" href="{{ route('transaksi.penjualan') }}">Transaksi Penjualan</a>
+                        @if($user->isAdmin() || $user->isKaryawan()|| $user->isCustomer())
+                            <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.transaksi.penjualan') }}'); return false;">
+                                Transaksi Penjualan
+                            </a>
                         @endif
                     </div>
                 </div>
@@ -125,6 +132,26 @@ table.dataTable td {
 
             <!-- Divider -->
             <hr class="sidebar-divider d-none d-md-block">
+
+            @if($user && ($user->isAdmin() || $user->isKaryawan()))
+                <li class="nav-item">
+                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseLaporan"
+                        aria-expanded="true" aria-controls="collapseLaporan">
+                        <i class="fas fa-fw fa-chart-bar"></i>
+                        <span>Laporan</span>
+                    </a>
+                    <div id="collapseLaporan" class="collapse" aria-labelledby="headingLaporan" data-parent="#accordionSidebar">
+                        <div class="bg-white py-2 collapse-inner rounded">
+                            <h6 class="collapse-header">Daftar Laporan:</h6>
+
+                            <a class="collapse-item" href="#"
+                            onclick="loadContent('{{ route('ajax.laporan.stok') }}'); return false;">
+                                Laporan Stok Barang
+                            </a>
+                        </div>
+                    </div>
+                </li>
+            @endif
 
             <!-- Sidebar Toggler (Sidebar) -->
             <div class="text-center d-none d-md-inline">
@@ -189,26 +216,28 @@ table.dataTable td {
                             </div>
                         </li>
 
-
-
                         <div class="topbar-divider d-none d-sm-block"></div>
 
                         <!-- Nav Item - User Information -->
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <span class="mr-2 d-none d-lg-inline text-gray-600 small">{{ Auth::user()->nama_user ?? 'User' }}</span>
-                                <img class="img-profile rounded-circle"
-                                    src="img/undraw_profile.svg">
+                                <span class="mr-2 d-none d-lg-inline text-gray-600 small">
+                                    {{ Auth::user()->nama_user ?? 'User' }}
+                                </span>
+                                <img class="img-profile rounded-circle" src="img/undraw_profile.svg">
                             </a>
-                            <!-- Dropdown - User Information -->
+
                             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
                                 aria-labelledby="userDropdown">
-                                <a class="dropdown-item" href="#">
+                                <a class="dropdown-item" href="#"
+                                onclick="loadContent('{{ route('customer.profile') }}'); return false;">
                                     <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
                                     Profile
                                 </a>
+
                                 <div class="dropdown-divider"></div>
+
                                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
                                     <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
                                     Logout

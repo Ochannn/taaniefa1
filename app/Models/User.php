@@ -35,6 +35,11 @@ class User extends Authenticatable
         return 'kode_user';
     }
 
+    public function customer()
+    {
+        return $this->hasOne(Customer::class, 'kode_user', 'kode_user');
+    }
+
     public function isAdmin()
     {
         return $this->kode_role === 'KRL001';

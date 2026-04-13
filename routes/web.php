@@ -3,8 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MasterController;
-use App\Http\Controllers\TransaksiPembelianController;
-use App\Http\Controllers\TransaksiPenjualanController;
+use App\Http\Controllers\TransaksiController;
+use App\Http\Controllers\LaporanController;
 use App\Http\Middleware\RoleMiddleware;
 
 Route::get('/', function () {
@@ -26,6 +26,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/ajax/dashboard', function () {
         return view('home.dashboard');
     })->name('ajax.dashboard');
+
+    Route::get('/ajax/customer/profile', [AuthController::class, 'customerProfile'])->name('customer.profile');
+    Route::post('/ajax/customer/profile/update', [AuthController::class, 'updateCustomerProfile'])->name('customer.profile.update');
 });
 
 Route::middleware(['auth', 'role:KRL001'])->group(function () {
@@ -36,9 +39,33 @@ Route::middleware(['auth', 'role:KRL001'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:KRL001,KRL002'])->group(function () {
-    Route::get('/transaksi-pembelian', [TransaksiPembelianController::class, 'index'])->name('transaksi.pembelian');
+    Route::get('/ajax/transaksi/pembelian', [TransaksiController::class, 'pembelian'])->name('ajax.transaksi.pembelian');
+    Route::post('/ajax/transaksi/pembelian/store', [TransaksiController::class, 'storePembelian'])->name('ajax.transaksi.pembelian.store');
+
+    Route::get('/ajax/transaksi/pembelian/data', [TransaksiController::class, 'listPembelian'])->name('ajax.transaksi.pembelian.data');
+    Route::get('/ajax/transaksi/pembelian/show/{kode_pembelian}', [TransaksiController::class, 'showPembelian'])->name('ajax.transaksi.pembelian.show');
+    Route::post('/ajax/transaksi/pembelian/update/{kode_pembelian}', [TransaksiController::class, 'updatePembelian'])->name('ajax.transaksi.pembelian.update');
+    Route::delete('/ajax/transaksi/pembelian/delete/{kode_pembelian}', [TransaksiController::class, 'deletePembelian'])->name('ajax.transaksi.pembelian.delete');
 });
 
 Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
-    Route::get('/transaksi-penjualan', [TransaksiPenjualanController::class, 'index'])->name('transaksi.penjualan');
+    Route::get('/ajax/transaksi/penjualan', [TransaksiController::class, 'penjualan'])->name('ajax.transaksi.penjualan');
+    Route::post('/ajax/transaksi/penjualan/store', [TransaksiController::class, 'storePenjualan'])->name('ajax.transaksi.penjualan.store');
+    Route::get('/ajax/transaksi/penjualan/data', [TransaksiController::class, 'listPenjualan'])->name('ajax.transaksi.penjualan.data');
+    Route::get('/ajax/transaksi/penjualan/show/{kode_pesanan}', [TransaksiController::class, 'showPenjualan'])->name('ajax.transaksi.penjualan.show');
+    Route::post('/ajax/transaksi/penjualan/update/{kode_pesanan}', [TransaksiController::class, 'updatePenjualan'])->name('ajax.transaksi.penjualan.update');
+    Route::delete('/ajax/transaksi/penjualan/delete/{kode_pesanan}', [TransaksiController::class, 'deletePenjualan'])->name('ajax.transaksi.penjualan.delete');
+
+    Route::get('/transaksi-penjualan', [TransaksiController::class, 'penjualan'])->name('transaksi.penjualan');
+});
+
+Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
+
+Route::get('/tes-db', function () {
+    try {
+        DB::connection()->getPdo();
+        return 'Database telah terhubung';
+    } catch (\Exception $e) {
+        return 'Database tidak terhubung: ' . $e->getMessage();
+    }
 });
