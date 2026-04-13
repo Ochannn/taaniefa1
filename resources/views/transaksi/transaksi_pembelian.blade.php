@@ -205,6 +205,7 @@
 </div>
 
 <script>
+    // Transaksi Pembelian JS
     window.transaksiPembelianConfig = {
         barangList: @json($barangs),
         storeUrl: "{{ route('ajax.transaksi.pembelian.store') }}",
