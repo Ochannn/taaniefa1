@@ -59,17 +59,5 @@ Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
     Route::get('/transaksi-penjualan', [TransaksiController::class, 'penjualan'])->name('transaksi.penjualan');
 });
 
-<<<<<<< HEAD
-Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
 
-Route::get('/tes-db', function () {
-    try {
-        DB::connection()->getPdo();
-        return 'Database telah terhubung';
-    } catch (\Exception $e) {
-        return 'Database tidak terhubung: ' . $e->getMessage();
-    }
-});
-=======
 Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
->>>>>>> 6990765a2e2528e4dbb9677a1ca74a62e1b48e34
