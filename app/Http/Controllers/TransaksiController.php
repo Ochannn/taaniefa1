@@ -8,6 +8,16 @@ use Illuminate\Support\Facades\DB;
 
 class TransaksiController extends Controller
 {
+
+    public function riwayatPenjualan()
+    {
+        $user = Auth::user();
+
+        return view('transaksi.riwayatpenjualan', [
+            'user' => $user,
+        ]);
+    }
+    
     public function pembelian()
     {
         $suppliers = DB::table('master_supplier')
@@ -449,11 +459,15 @@ class TransaksiController extends Controller
                 'tp.tgl_pesanan',
                 'tp.kode_customer',
                 'mc.nama_customer',
-                'tp.jenis_pesanan',
+                'tp.jenis_pengiriman',
+                'tp.jenis_pemesanan',
                 'tp.status_pesanan',
                 'tp.alamat_kirim_pesanan',
                 'tp.ongkir_pesanan',
-                'tp.catatan_pesanan'
+                'tp.catatan_pesanan',
+                'tp.spesifikasi_tambahan',
+                'tp.harga_estimasi',
+                'tp.status_custom'
             )
             ->where('tp.kode_pesanan', $kodePesanan);
 
@@ -503,15 +517,18 @@ class TransaksiController extends Controller
         $user = Auth::user();
 
         $rules = [
-            'tgl_pesanan'             => 'required|date',
-            'jenis_pesanan'           => 'required|string',
-            'alamat_kirim_pesanan'    => 'nullable|string',
-            'ongkir_pesanan'          => 'required|numeric|min:0',
-            'catatan_pesanan'         => 'nullable|string',
-            'items'                   => 'required|array|min:1',
-            'items.*.kode_barang'     => 'required|string',
-            'items.*.nama_barang'     => 'required|string',
-            'items.*.qty'             => 'required|numeric|min:1',
+            'tgl_pesanan'          => 'required|date',
+            'jenis_pengiriman'     => 'required|string|in:Reguler,Express,Preorder',
+            'jenis_pemesanan'      => 'required|string|in:Standart,Custom',
+            'alamat_kirim_pesanan' => 'nullable|string',
+            'ongkir_pesanan'       => 'required|numeric|min:0',
+            'catatan_pesanan'      => 'nullable|string',
+            'spesifikasi_tambahan' => 'nullable|string',
+            'harga_estimasi'       => 'nullable|numeric|min:0',
+            'items'                => 'required|array|min:1',
+            'items.*.kode_barang'  => 'required|string',
+            'items.*.nama_barang'  => 'required|string',
+            'items.*.qty'          => 'required|numeric|min:1',
         ];
 
         if ($this->isAdminRole($user->kode_role)) {
@@ -521,10 +538,17 @@ class TransaksiController extends Controller
 
         $request->validate($rules);
 
-        if (!$this->validateOngkirByJenis($request->jenis_pesanan, $request->ongkir_pesanan)) {
+        if ($request->jenis_pemesanan === 'Custom' && empty($request->spesifikasi_tambahan)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nilai ongkir tidak sesuai dengan jenis pesanan.'
+                'message' => 'Spesifikasi tambahan wajib diisi untuk pesanan custom.'
+            ], 422);
+        }
+
+        if (!$this->validateOngkirByJenis($request->jenis_pengiriman, $request->ongkir_pesanan)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nilai ongkir tidak sesuai dengan jenis pengiriman.'
             ], 422);
         }
 
@@ -546,7 +570,7 @@ class TransaksiController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, $kodeCustomer, $statusPesanan, &$kodePesanan, &$totalDetail, &$grandTotal) {
+            DB::transaction(function () use ($request, $user, $kodeCustomer, $statusPesanan, &$kodePesanan, &$totalDetail, &$grandTotal) {
                 $kodePesanan = $this->generateKodePesananLocked();
                 $totalDetail = 0;
 
@@ -605,15 +629,32 @@ class TransaksiController extends Controller
                     ];
                 }
 
+                $statusCustom = null;
+                $spesifikasiTambahan = null;
+                $hargaEstimasi = null;
+
+                if ($request->jenis_pemesanan === 'Custom') {
+                    $spesifikasiTambahan = $request->spesifikasi_tambahan;
+                    $hargaEstimasi = $this->isAdminRole($user->kode_role) && $request->filled('harga_estimasi')
+                        ? (float) $request->harga_estimasi
+                        : null;
+
+                    $statusCustom = $this->isCustomerRole($user->kode_role) ? null : 'lanjutkan';
+                }
+
                 DB::table('transaksi_penjualan')->insert([
                     'kode_pesanan'         => $kodePesanan,
                     'tgl_pesanan'          => $request->tgl_pesanan,
                     'kode_customer'        => $kodeCustomer,
-                    'jenis_pesanan'        => $request->jenis_pesanan,
+                    'jenis_pengiriman'     => $request->jenis_pengiriman,
+                    'jenis_pemesanan'      => $request->jenis_pemesanan,
                     'status_pesanan'       => $statusPesanan,
                     'alamat_kirim_pesanan' => $request->alamat_kirim_pesanan,
                     'ongkir_pesanan'       => (float) $request->ongkir_pesanan,
                     'catatan_pesanan'      => $request->catatan_pesanan,
+                    'spesifikasi_tambahan' => $request->jenis_pemesanan === 'Custom' ? $spesifikasiTambahan : null,
+                    'harga_estimasi'       => $request->jenis_pemesanan === 'Custom' ? $hargaEstimasi : null,
+                    'status_custom'        => $request->jenis_pemesanan === 'Custom' ? $statusCustom : null,
                 ]);
 
                 DB::table('transaksi_penjualan_detail')->insert($detailRows);
@@ -647,8 +688,11 @@ class TransaksiController extends Controller
                 'tp.tgl_pesanan',
                 'tp.kode_customer',
                 'mc.nama_customer',
-                'tp.jenis_pesanan',
-                'tp.status_pesanan'
+                'tp.jenis_pengiriman',
+                'tp.jenis_pemesanan',
+                'tp.status_pesanan',
+                'tp.harga_estimasi',
+                'tp.status_custom'
             );
 
         if ($this->isCustomerRole($user->kode_role)) {
@@ -694,9 +738,14 @@ class TransaksiController extends Controller
             ->get();
 
         return response()->json([
-            'success' => true,
-            'header'  => $header,
-            'details' => $details,
+            'success'  => true,
+            'header'   => $header,
+            'details'  => $details,
+            'custom'   => [
+                'spesifikasi_tambahan' => $header->spesifikasi_tambahan,
+                'harga_estimasi'       => $header->harga_estimasi,
+                'status_custom'        => $header->status_custom,
+            ],
             'can_edit' => $this->isAdminRole($user->kode_role) || $header->status_pesanan === 'Pending',
         ]);
     }
@@ -706,15 +755,19 @@ class TransaksiController extends Controller
         $user = Auth::user();
 
         $rules = [
-            'tgl_pesanan'             => 'required|date',
-            'jenis_pesanan'           => 'required|string',
-            'alamat_kirim_pesanan'    => 'nullable|string',
-            'ongkir_pesanan'          => 'required|numeric|min:0',
-            'catatan_pesanan'         => 'nullable|string',
-            'items'                   => 'required|array|min:1',
-            'items.*.kode_barang'     => 'required|string',
-            'items.*.nama_barang'     => 'required|string',
-            'items.*.qty'             => 'required|numeric|min:1',
+            'tgl_pesanan'          => 'required|date',
+            'jenis_pengiriman'     => 'required|string|in:Reguler,Express,Preorder',
+            'jenis_pemesanan'      => 'required|string|in:Standart,Custom',
+            'alamat_kirim_pesanan' => 'nullable|string',
+            'ongkir_pesanan'       => 'required|numeric|min:0',
+            'catatan_pesanan'      => 'nullable|string',
+            'spesifikasi_tambahan' => 'nullable|string',
+            'harga_estimasi'       => 'nullable|numeric|min:0',
+            'status_custom'        => 'nullable|string|in:lanjutkan,batal',
+            'items'                => 'required|array|min:1',
+            'items.*.kode_barang'  => 'required|string',
+            'items.*.nama_barang'  => 'required|string',
+            'items.*.qty'          => 'required|numeric|min:1',
         ];
 
         if ($this->isAdminRole($user->kode_role)) {
@@ -724,10 +777,17 @@ class TransaksiController extends Controller
 
         $request->validate($rules);
 
-        if (!$this->validateOngkirByJenis($request->jenis_pesanan, $request->ongkir_pesanan)) {
+        if ($request->jenis_pemesanan === 'Custom' && empty($request->spesifikasi_tambahan)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nilai ongkir tidak sesuai dengan jenis pesanan.'
+                'message' => 'Spesifikasi tambahan wajib diisi untuk pesanan custom.'
+            ], 422);
+        }
+
+        if (!$this->validateOngkirByJenis($request->jenis_pengiriman, $request->ongkir_pesanan)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nilai ongkir tidak sesuai dengan jenis pengiriman.'
             ], 422);
         }
 
@@ -740,10 +800,10 @@ class TransaksiController extends Controller
             ], 404);
         }
 
-        if ($this->isCustomerRole($user->kode_role) && $headerAkses->status_pesanan !== 'Pending') {
+        if ($headerAkses->status_pesanan !== 'Pending') {
             return response()->json([
                 'success' => false,
-                'message' => 'Pesanan sudah diproses admin, data tidak dapat diedit lagi.'
+                'message' => 'Pesanan sudah diproses, data tidak dapat diedit lagi.'
             ], 403);
         }
 
@@ -761,11 +821,20 @@ class TransaksiController extends Controller
             $statusPesanan = $headerAkses->status_pesanan;
         } else {
             $kodeCustomer = $request->kode_customer;
-            $statusPesanan = $request->status_pesanan;
+            $statusPesanan = $request->status_pesanan ?: $headerAkses->status_pesanan;
         }
 
         try {
-            DB::transaction(function () use ($request, $kode_pesanan, $kodeCustomer, $statusPesanan, &$totalDetail, &$grandTotal) {
+            DB::transaction(function () use (
+                $request,
+                $user,
+                $kode_pesanan,
+                $kodeCustomer,
+                $statusPesanan,
+                $headerAkses,
+                &$totalDetail,
+                &$grandTotal
+            ) {
                 $header = DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
                     ->lockForUpdate()
@@ -847,16 +916,44 @@ class TransaksiController extends Controller
                     ];
                 }
 
+                $spesifikasiTambahan = null;
+                $hargaEstimasi = null;
+                $statusCustom = null;
+
+                if ($request->jenis_pemesanan === 'Custom') {
+                    $spesifikasiTambahan = $request->spesifikasi_tambahan;
+
+                    if ($this->isAdminRole($user->kode_role)) {
+                        $hargaEstimasi = $request->filled('harga_estimasi')
+                            ? (float) $request->harga_estimasi
+                            : $header->harga_estimasi;
+                    } else {
+                        $hargaEstimasi = $header->harga_estimasi;
+                    }
+
+                    if ($this->isAdminRole($user->kode_role)) {
+                        $statusCustom = $request->filled('status_custom')
+                            ? $request->status_custom
+                            : $header->status_custom;
+                    } else {
+                        $statusCustom = $header->status_custom;
+                    }
+                }
+
                 DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
                     ->update([
                         'tgl_pesanan'          => $request->tgl_pesanan,
                         'kode_customer'        => $kodeCustomer,
-                        'jenis_pesanan'        => $request->jenis_pesanan,
+                        'jenis_pengiriman'     => $request->jenis_pengiriman,
+                        'jenis_pemesanan'      => $request->jenis_pemesanan,
                         'status_pesanan'       => $statusPesanan,
                         'alamat_kirim_pesanan' => $request->alamat_kirim_pesanan,
                         'ongkir_pesanan'       => (float) $request->ongkir_pesanan,
                         'catatan_pesanan'      => $request->catatan_pesanan,
+                        'spesifikasi_tambahan' => $request->jenis_pemesanan === 'Custom' ? $spesifikasiTambahan : null,
+                        'harga_estimasi'       => $request->jenis_pemesanan === 'Custom' ? $hargaEstimasi : null,
+                        'status_custom'        => $request->jenis_pemesanan === 'Custom' ? $statusCustom : null,
                     ]);
 
                 DB::table('transaksi_penjualan_detail')->insert($detailRows);
@@ -892,10 +989,10 @@ class TransaksiController extends Controller
             ], 404);
         }
 
-        if ($this->isCustomerRole($user->kode_role) && $headerAkses->status_pesanan !== 'Pending') {
+        if ($headerAkses->status_pesanan !== 'Pending') {
             return response()->json([
                 'success' => false,
-                'message' => 'Pesanan sudah diproses admin, data tidak dapat dihapus lagi.'
+                'message' => 'Pesanan yang sudah diproses tidak dapat dihapus.'
             ], 403);
         }
 
@@ -949,6 +1046,91 @@ class TransaksiController extends Controller
                 'message' => 'Gagal menghapus transaksi: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    public function approveCustomPenjualan($kode_pesanan)
+    {
+        $user = Auth::user();
+
+        if (!$this->isCustomerRole($user->kode_role)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya customer yang dapat melanjutkan pesanan custom.'
+            ], 403);
+        }
+
+        $header = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
+
+        if (!$header) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data penjualan tidak ditemukan atau Anda tidak memiliki akses.'
+            ], 404);
+        }
+
+        if ($header->jenis_pemesanan !== 'Custom') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pesanan ini bukan pesanan custom.'
+            ], 422);
+        }
+
+        if (empty($header->harga_estimasi) || (float) $header->harga_estimasi <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Harga estimasi belum diisi admin.'
+            ], 422);
+        }
+
+        DB::table('transaksi_penjualan')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->update([
+                'status_custom' => 'lanjutkan'
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pesanan custom berhasil dilanjutkan.'
+        ]);
+    }
+
+    public function rejectCustomPenjualan($kode_pesanan)
+    {
+        $user = Auth::user();
+
+        if (!$this->isCustomerRole($user->kode_role)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya customer yang dapat menolak pesanan custom.'
+            ], 403);
+        }
+
+        $header = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
+
+        if (!$header) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data penjualan tidak ditemukan atau Anda tidak memiliki akses.'
+            ], 404);
+        }
+
+        if ($header->jenis_pemesanan !== 'Custom') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pesanan ini bukan pesanan custom.'
+            ], 422);
+        }
+
+        DB::table('transaksi_penjualan')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->update([
+                'status_custom' => 'batal'
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pesanan custom tidak dilanjutkan, tetapi tetap tercatat sebagai custom.'
+        ]);
     }
 
     private function previewKodePesanan()

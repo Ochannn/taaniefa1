@@ -4,6 +4,7 @@ window.initTransaksiPenjualan = function (config) {
     let editIndex = null;
     let tablePenjualan = null;
     let formLocked = false;
+    let isSyncingBarangSelect = false;
 
     function formatNumber(value) {
         return new Intl.NumberFormat('id-ID').format(value || 0);
@@ -25,32 +26,110 @@ window.initTransaksiPenjualan = function (config) {
         return parseFloat($('#ongkir_pesanan').val()) || 0;
     }
 
+    function formatBarangOption(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        const el = $(option.element);
+        const kode = el.data('kode') || '-';
+        const nama = el.data('nama') || '-';
+        const kapasitas = parseFloat(el.data('kapasitas')) || 0;
+        const harga = parseFloat(el.data('harga')) || 0;
+
+        return $(`
+            <div class="barang-option-wrap">
+                <div class="barang-option-kiri">
+                    <span class="barang-option-title">${nama}</span>
+                    <span class="barang-option-subtitle">${kode}</span>
+                </div>
+                <div class="barang-option-kanan">
+                    <span class="barang-option-stok">Stok: ${formatNumber(kapasitas)}</span>
+                    <span class="barang-option-harga">${formatRupiah(harga)}</span>
+                </div>
+            </div>
+        `);
+    }
+    initSelectBarang();
+
+    function initSelectBarang() {
+        $('#detail_kode_barang_penjualan').select2({
+            width: '100%',
+            placeholder: 'Pilih Kode Barang',
+            templateResult: formatBarangOption,
+            templateSelection: function (option) {
+                if (!option.id) {
+                    return option.text;
+                }
+
+                const el = $(option.element);
+                return `${el.data('kode')} - ${el.data('nama')}`;
+            },
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+        });
+
+        $('#detail_nama_barang_penjualan').select2({
+            width: '100%',
+            placeholder: 'Pilih Nama Barang',
+            templateResult: formatBarangOption,
+            templateSelection: function (option) {
+                if (!option.id) {
+                    return option.text;
+                }
+
+                const el = $(option.element);
+                return `${el.data('nama')} - ${el.data('kode')}`;
+            },
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+        });
+    }
+
     function setFormLockState(locked) {
         formLocked = locked;
 
         const disableSelector = [
             '#tgl_pesanan',
             '#kode_customer',
-            '#jenis_pesanan',
+            '#jenis_pengiriman',
+            '#jenis_pemesanan',
             '#alamat_kirim_pesanan',
             '#catatan_pesanan',
             '#detail_kode_barang_penjualan',
             '#detail_nama_barang_penjualan',
             '#detail_qty_penjualan',
-            '#btnTambahDetailPenjualan'
+            '#btnTambahDetailPenjualan',
+            '#btnSavePenjualan'
         ].join(',');
 
         $(disableSelector).prop('disabled', locked);
 
-        if (config.isAdmin) {
-            $('#status_pesanan').prop('disabled', false);
-        } else {
+        if (locked) {
+            $('#spesifikasi_tambahan').prop('readonly', true);
+            $('#harga_estimasi').prop('readonly', true);
             $('#status_pesanan').prop('disabled', true);
+            $('#btnLanjutkanCustom').prop('disabled', true);
+            $('#btnTolakCustom').prop('disabled', true);
+            $('.btn-edit-detail-penjualan').prop('disabled', true);
+            $('.btn-delete-detail-penjualan').prop('disabled', true);
+            return;
         }
 
-        $('#btnSavePenjualan').prop('disabled', locked);
-    }
+        if (config.isAdmin) {
+            $('#status_pesanan').prop('disabled', false);
+            $('#harga_estimasi').prop('readonly', false);
+        } else {
+            $('#status_pesanan').prop('disabled', true);
+            $('#harga_estimasi').prop('readonly', true);
+        }
 
+        $('#spesifikasi_tambahan').prop('readonly', !config.isAdmin ? false : false);
+        $('#btnLanjutkanCustom').prop('disabled', false);
+        $('#btnTolakCustom').prop('disabled', false);
+    }
     function applyLockByStatus(statusPesanan) {
         if (config.isAdmin) {
             setFormLockState(false);
@@ -65,10 +144,14 @@ window.initTransaksiPenjualan = function (config) {
     }
 
     function clearDetailForm() {
-        $('#detail_kode_barang_penjualan').val('');
-        $('#detail_nama_barang_penjualan').val('');
+        isSyncingBarangSelect = true;
+
+        $('#detail_kode_barang_penjualan').val('').trigger('change.select2');
+        $('#detail_nama_barang_penjualan').val('').trigger('change.select2');
         $('#detail_qty_penjualan').val('');
         $('#detail_harga_satuan_penjualan').val('');
+
+        isSyncingBarangSelect = false;
         editIndex = null;
 
         $('#btnTambahDetailPenjualan')
@@ -88,11 +171,18 @@ window.initTransaksiPenjualan = function (config) {
             }
         }
 
-        $('#jenis_pesanan').val('');
+        $('#jenis_pengiriman').val('');
+        $('#jenis_pemesanan').val('');
         $('#status_pesanan').val('Pending');
         $('#alamat_kirim_pesanan').val('');
         $('#ongkir_pesanan').val(0);
         $('#catatan_pesanan').val('');
+        $('#spesifikasi_tambahan').val('');
+        $('#harga_estimasi').val('');
+        $('#status_custom').val('');
+        $('#customPenjualanSection').hide();
+        $('#customApprovalSection').hide();
+
         $('#form_mode_penjualan').val('create');
         $('#edit_kode_pesanan').val('');
         $('#btnSavePenjualan').text('Save Data');
@@ -101,29 +191,45 @@ window.initTransaksiPenjualan = function (config) {
     }
 
     function syncNamaByKode() {
+        if (isSyncingBarangSelect) {
+            return;
+        }
+
         const kode = $('#detail_kode_barang_penjualan').val();
         const selected = getBarangByKode(kode);
 
+        isSyncingBarangSelect = true;
+
         if (selected) {
-            $('#detail_nama_barang_penjualan').val(selected.nama_barang);
+            $('#detail_nama_barang_penjualan').val(selected.nama_barang).trigger('change.select2');
             $('#detail_harga_satuan_penjualan').val(selected.harga_jual || 0);
         } else {
-            $('#detail_nama_barang_penjualan').val('');
+            $('#detail_nama_barang_penjualan').val('').trigger('change.select2');
             $('#detail_harga_satuan_penjualan').val('');
         }
+
+        isSyncingBarangSelect = false;
     }
 
     function syncKodeByNama() {
+        if (isSyncingBarangSelect) {
+            return;
+        }
+
         const nama = $('#detail_nama_barang_penjualan').val();
         const selected = getBarangByNama(nama);
 
+        isSyncingBarangSelect = true;
+
         if (selected) {
-            $('#detail_kode_barang_penjualan').val(selected.kode_barang);
+            $('#detail_kode_barang_penjualan').val(selected.kode_barang).trigger('change.select2');
             $('#detail_harga_satuan_penjualan').val(selected.harga_jual || 0);
         } else {
-            $('#detail_kode_barang_penjualan').val('');
+            $('#detail_kode_barang_penjualan').val('').trigger('change.select2');
             $('#detail_harga_satuan_penjualan').val('');
         }
+
+        isSyncingBarangSelect = false;
     }
 
     function generateRandomInt(min, max) {
@@ -131,7 +237,7 @@ window.initTransaksiPenjualan = function (config) {
     }
 
     function setOngkirByJenis() {
-        const jenis = $('#jenis_pesanan').val();
+        const jenis = $('#jenis_pengiriman').val();
         let ongkir = 0;
 
         if (jenis === 'Reguler') {
@@ -297,11 +403,15 @@ window.initTransaksiPenjualan = function (config) {
                 ? $('#kode_customer').val()
                 : (config.customerAktifKode || $('#kode_customer').val()),
             tgl_pesanan: $('#tgl_pesanan').val(),
-            jenis_pesanan: $('#jenis_pesanan').val(),
+            jenis_pengiriman: $('#jenis_pengiriman').val(),
+            jenis_pemesanan: $('#jenis_pemesanan').val(),
             status_pesanan: $('#status_pesanan').val(),
             alamat_kirim_pesanan: $('#alamat_kirim_pesanan').val(),
             ongkir_pesanan: $('#ongkir_pesanan').val() || 0,
-            catatan_pesanan: $('#catatan_pesanan').val()
+            catatan_pesanan: $('#catatan_pesanan').val(),
+            spesifikasi_tambahan: $('#spesifikasi_tambahan').val(),
+            harga_estimasi: $('#harga_estimasi').val() || '',
+            status_custom: $('#status_custom').val() || ''
         };
 
         detailItems.forEach((item, index) => {
@@ -361,9 +471,26 @@ window.initTransaksiPenjualan = function (config) {
                     }
                 },
                 {
-                    data: 'jenis_pesanan',
+                    data: 'jenis_pengiriman',
                     render: function (data) {
                         return data ? data : '-';
+                    }
+                },
+                {
+                    data: 'jenis_pemesanan',
+                    render: function (data) {
+                        return data ? data : '-';
+                    }
+                },
+                {
+                    data: 'harga_estimasi',
+                    render: function (data, type, row) {
+                        if ((row.jenis_pemesanan || '') !== 'Custom') {
+                            return '-';
+                        }
+
+                        const nilai = parseFloat(data) || 0;
+                        return nilai > 0 ? formatRupiah(nilai) : '0';
                     }
                 },
                 {
@@ -429,8 +556,9 @@ window.initTransaksiPenjualan = function (config) {
                     $('#kode_customer').val(response.header.kode_customer || '');
                 }
 
-                $('#jenis_pesanan').val(response.header.jenis_pesanan);
-                $('#status_pesanan').val(response.header.status_pesanan);
+                $('#jenis_pengiriman').val(response.header.jenis_pengiriman || '');
+                $('#jenis_pemesanan').val(response.header.jenis_pemesanan || '');
+                $('#status_pesanan').val(response.header.status_pesanan || 'Pending');
                 $('#alamat_kirim_pesanan').val(response.header.alamat_kirim_pesanan || '');
                 $('#ongkir_pesanan').val(response.header.ongkir_pesanan || 0);
                 $('#catatan_pesanan').val(response.header.catatan_pesanan || '');
@@ -446,8 +574,20 @@ window.initTransaksiPenjualan = function (config) {
                     };
                 });
 
+                if (response.custom) {
+                    $('#spesifikasi_tambahan').val(response.custom.spesifikasi_tambahan || '');
+                    $('#harga_estimasi').val(response.custom.harga_estimasi || '');
+                    $('#status_custom').val(response.custom.status_custom || '');
+                } else {
+                    $('#spesifikasi_tambahan').val('');
+                    $('#harga_estimasi').val('');
+                    $('#status_custom').val('');
+                }
+
                 editIndex = null;
                 clearDetailForm();
+                toggleCustomSection();
+                applyCustomRoleState();
                 applyLockByStatus(response.header.status_pesanan);
                 renderTable();
 
@@ -462,7 +602,7 @@ window.initTransaksiPenjualan = function (config) {
                     title: response.can_edit ? 'Mode edit aktif' : 'Data terkunci',
                     text: response.can_edit
                         ? `Transaksi ${kodePesanan} berhasil dimuat.`
-                        : `Transaksi ${kodePesanan} berhasil dimuat, tetapi sudah tidak dapat diedit oleh customer.`
+                        : `Transaksi ${kodePesanan} berhasil dimuat, tetapi sudah tidak dapat diedit.`
                 });
             },
             error: function (xhr) {
@@ -474,6 +614,8 @@ window.initTransaksiPenjualan = function (config) {
             }
         });
     }
+
+    window.loadDataPenjualanUntukEdit = loadDataPenjualanUntukEdit;
 
     function hapusDataPenjualan(kodePesanan) {
         Swal.fire({
@@ -532,11 +674,15 @@ window.initTransaksiPenjualan = function (config) {
     }
 
     $(document).off('change', '#detail_kode_barang_penjualan').on('change', '#detail_kode_barang_penjualan', function () {
-        syncNamaByKode();
+        if (!isSyncingBarangSelect) {
+            syncNamaByKode();
+        }
     });
 
     $(document).off('change', '#detail_nama_barang_penjualan').on('change', '#detail_nama_barang_penjualan', function () {
-        syncKodeByNama();
+        if (!isSyncingBarangSelect) {
+            syncKodeByNama();
+        }
     });
 
     $(document).off('input', '#ongkir_pesanan').on('input', '#ongkir_pesanan', function () {
@@ -652,10 +798,14 @@ window.initTransaksiPenjualan = function (config) {
             return;
         }
 
-        $('#detail_kode_barang_penjualan').val(item.kode_barang);
-        $('#detail_nama_barang_penjualan').val(item.nama_barang);
+        isSyncingBarangSelect = true;
+
+        $('#detail_kode_barang_penjualan').val(item.kode_barang).trigger('change.select2');
+        $('#detail_nama_barang_penjualan').val(item.nama_barang).trigger('change.select2');
         $('#detail_qty_penjualan').val(item.qty);
         $('#detail_harga_satuan_penjualan').val(item.harga_satuan);
+
+        isSyncingBarangSelect = false;
 
         editIndex = index;
 
@@ -740,11 +890,13 @@ window.initTransaksiPenjualan = function (config) {
         }
 
         const tglPesanan = $('#tgl_pesanan').val();
-        const jenisPesanan = $('#jenis_pesanan').val();
+        const jenisPengiriman = $('#jenis_pengiriman').val();
+        const jenisPemesanan = $('#jenis_pemesanan').val();
         const statusPesanan = $('#status_pesanan').val();
         const mode = $('#form_mode_penjualan').val();
         const kodeEdit = $('#edit_kode_pesanan').val();
         const kodeCustomer = $('#kode_customer').val();
+        const spesifikasiTambahan = $('#spesifikasi_tambahan').val().trim();
 
         if (!tglPesanan) {
             Swal.fire({
@@ -755,11 +907,29 @@ window.initTransaksiPenjualan = function (config) {
             return;
         }
 
-        if (!jenisPesanan) {
+        if (!jenisPengiriman) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Jenis pesanan wajib dipilih',
-                text: 'Jenis pesanan harus dipilih.'
+                title: 'Jenis pengiriman wajib dipilih',
+                text: 'Jenis pengiriman harus dipilih.'
+            });
+            return;
+        }
+
+        if (!jenisPemesanan) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Jenis pemesanan wajib dipilih',
+                text: 'Jenis pemesanan harus dipilih.'
+            });
+            return;
+        }
+
+        if (jenisPemesanan === 'Custom' && !spesifikasiTambahan) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Spesifikasi tambahan wajib diisi',
+                text: 'Isi spesifikasi tambahan untuk pesanan custom.'
             });
             return;
         }
@@ -837,11 +1007,196 @@ window.initTransaksiPenjualan = function (config) {
         });
     });
 
-    $(document).off('change', '#jenis_pesanan').on('change', '#jenis_pesanan', function () {
+    $(document).off('click', '#btnLanjutkanCustom').on('click', '#btnLanjutkanCustom', async function () {
+        const kodePesanan = $('#edit_kode_pesanan').val();
+
+        if (!kodePesanan) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Kode pesanan tidak ditemukan',
+                text: 'Silakan buka data pesanan terlebih dahulu.'
+            });
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Lanjutkan pesanan custom?',
+            text: 'Pesanan custom akan tetap tercatat dan status custom menjadi dilanjutkan.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya',
+            cancelButtonText: 'Batal'
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        $.ajax({
+            url: `${config.approveCustomUrlBase}/${kodePesanan}`,
+            type: 'POST',
+            data: {
+                _token: config.csrfToken
+            },
+            beforeSend: function () {
+                Swal.fire({
+                    title: 'Memproses pesanan',
+                    text: 'Mohon tunggu...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: response.message || 'Pesanan custom dilanjutkan.'
+                }).then(() => {
+                    $('#status_custom').val('lanjutkan');
+                    $('#customApprovalSection').hide();
+                });
+
+                if (tablePenjualan) {
+                    tablePenjualan.ajax.reload(null, false);
+                }
+            },
+            error: function (xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal memproses',
+                    html: getErrorMessage(xhr, 'Pesanan tidak berhasil diproses.')
+                });
+            }
+        });
+    });
+
+    $(document).off('click', '#btnTolakCustom').on('click', '#btnTolakCustom', async function () {
+        const kodePesanan = $('#edit_kode_pesanan').val();
+
+        if (!kodePesanan) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Kode pesanan tidak ditemukan',
+                text: 'Silakan buka data pesanan terlebih dahulu.'
+            });
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Tidak lanjutkan pesanan custom?',
+            text: 'Pesanan tetap tercatat sebagai custom, tetapi status custom menjadi tidak dilanjutkan.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya',
+            cancelButtonText: 'Batal'
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        $.ajax({
+            url: `${config.rejectCustomUrlBase}/${kodePesanan}`,
+            type: 'POST',
+            data: {
+                _token: config.csrfToken
+            },
+            beforeSend: function () {
+                Swal.fire({
+                    title: 'Memproses perubahan',
+                    text: 'Mohon tunggu...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (response) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: response.message || 'Pesanan custom tidak dilanjutkan.'
+                }).then(() => {
+                    $('#status_custom').val('batal');
+                    $('#customApprovalSection').hide();
+                });
+
+                if (tablePenjualan) {
+                    tablePenjualan.ajax.reload(null, false);
+                }
+            },
+            error: function (xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal memproses',
+                    html: getErrorMessage(xhr, 'Perubahan tidak berhasil diproses.')
+                });
+            }
+        });
+    });
+
+    let customData = {
+        jenis_pemesanan: '',
+        spesifikasi_tambahan: '',
+        harga_estimasi: '',
+        custom_locked: false
+    };
+
+    function toggleCustomSection() {
+        const jenisPemesanan = $('#jenis_pemesanan').val();
+
+        if (jenisPemesanan === 'Custom') {
+            $('#customPenjualanSection').show();
+        } else {
+            $('#customPenjualanSection').hide();
+            $('#spesifikasi_tambahan').val('');
+            $('#harga_estimasi').val('');
+            $('#status_custom').val('');
+            $('#customApprovalSection').hide();
+        }
+
+        applyCustomRoleState();
+    }
+
+    function applyCustomRoleState() {
+        const isCustom = $('#jenis_pemesanan').val() === 'Custom';
+
+        if (!isCustom) {
+            $('#customApprovalSection').hide();
+            return;
+        }
+
+        if (config.isAdmin) {
+            $('#harga_estimasi').prop('readonly', false);
+            $('#spesifikasi_tambahan').prop('readonly', false);
+            $('#customApprovalSection').hide();
+        } else {
+            $('#harga_estimasi').prop('readonly', true);
+
+            const hargaEstimasi = parseFloat($('#harga_estimasi').val()) || 0;
+            const statusCustom = $('#status_custom').val();
+
+            if (hargaEstimasi > 0 && !statusCustom) {
+                $('#customApprovalSection').show();
+            } else {
+                $('#customApprovalSection').hide();
+            }
+        }
+    }
+
+    $(document).off('change', '#jenis_pengiriman').on('change', '#jenis_pengiriman', function () {
         setOngkirByJenis();
     });
 
+    $(document).off('change', '#jenis_pemesanan').on('change', '#jenis_pemesanan', function () {
+        toggleCustomSection();
+    });;
+
     clearHeaderForm();
     clearDetailForm();
+    toggleCustomSection();
+    applyCustomRoleState();
     renderTable();
 };

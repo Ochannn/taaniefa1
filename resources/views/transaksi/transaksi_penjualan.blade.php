@@ -3,6 +3,7 @@
 
     <input type="hidden" id="form_mode_penjualan" value="create">
     <input type="hidden" id="edit_kode_pesanan" value="">
+    <input type="hidden" id="status_custom" value="">
 
     <div class="purchase-card">
         <div class="card-header">
@@ -47,12 +48,11 @@
                             </div>
                         @endif
                     </div>
-
                     <div class="col-lg-4 col-md-6">
                         <div class="form-group">
-                            <label>Jenis Pesanan</label>
-                            <select id="jenis_pesanan" class="form-control">
-                                <option value="">Pilih Jenis Pesanan</option>
+                            <label>Jenis Pengiriman</label>
+                            <select id="jenis_pengiriman" class="form-control">
+                                <option value="">Pilih Jenis Pengiriman</option>
                                 <option value="Reguler">Reguler</option>
                                 <option value="Express">Express</option>
                                 <option value="Preorder">Preorder</option>
@@ -62,7 +62,18 @@
 
                     <div class="col-lg-4 col-md-6">
                         <div class="form-group">
-                            <label>Ongkir Pesanan</label>
+                            <label>Jenis Pemesanan</label>
+                            <select id="jenis_pemesanan" class="form-control">
+                                <option value="">Pilih Jenis Pemesanan</option>
+                                <option value="Standart">Standart</option>
+                                <option value="Custom">Custom</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <label>Ongkir Pengiriman</label>
                             <input type="number" id="ongkir_pesanan" class="form-control soft-readonly" min="0" step="1" value="0" readonly>
                         </div>
                     </div>
@@ -88,14 +99,14 @@
                         </div>
                     </div>
 
-                    <div class="col-lg-6">
+                    <div class="col-lg-4">
                         <div class="form-group">
                             <label>Alamat Kirim Pesanan</label>
                             <textarea id="alamat_kirim_pesanan" rows="3" class="form-control" placeholder="Masukkan alamat pengiriman"></textarea>
                         </div>
                     </div>
 
-                    <div class="col-lg-6">
+                    <div class="col-lg-4">
                         <div class="form-group">
                             <label>Catatan Pesanan</label>
                             <textarea id="catatan_pesanan" rows="3" class="form-control" placeholder="Masukkan catatan pesanan jika diperlukan"></textarea>
@@ -115,7 +126,7 @@
                 <div class="col-lg-3 col-md-6">
                     <div class="form-group">
                         <label>Pilih Kode Barang</label>
-                        <select id="detail_kode_barang_penjualan" class="form-control">
+                        <select id="detail_kode_barang_penjualan" class="form-control select-barang-custom">
                             <option value="">Pilih Kode Barang</option>
                             @foreach($barangs as $barang)
                                 <option
@@ -126,7 +137,7 @@
                                     data-harga="{{ $barang->harga_jual }}"
                                     {{ (float)$barang->kapasitas <= 0 ? 'disabled' : '' }}
                                 >
-                                    {{ $barang->kode_barang }} - {{ (float)$barang->kapasitas <= 0 ? 'Stok tidak tersedia' : $barang->kapasitas }} - Rp.{{ number_format($barang->harga_jual, 0, ',', '.') }}
+                                    {{ $barang->kode_barang }}
                                 </option>
                             @endforeach
                         </select>
@@ -136,7 +147,7 @@
                 <div class="col-lg-3 col-md-6">
                     <div class="form-group">
                         <label>Pilih Nama Barang</label>
-                        <select id="detail_nama_barang_penjualan" class="form-control">
+                        <select id="detail_nama_barang_penjualan" class="form-control select-barang-custom">
                             <option value="">Pilih Nama Barang</option>
                             @foreach($barangs as $barang)
                                 <option
@@ -147,7 +158,7 @@
                                     data-harga="{{ $barang->harga_jual }}"
                                     {{ (float)$barang->kapasitas <= 0 ? 'disabled' : '' }}
                                 >
-                                    {{ $barang->nama_barang }} - {{ (float)$barang->kapasitas <= 0 ? 'Stok tidak tersedia' : $barang->kapasitas }} - Rp.{{ number_format($barang->harga_jual, 0, ',', '.') }}
+                                    {{ $barang->nama_barang }}
                                 </option>
                             @endforeach
                         </select>
@@ -255,7 +266,9 @@
                                     <th>Tanggal</th>
                                     <th>Kode Customer</th>
                                     <th>Customer</th>
-                                    <th>Jenis Pesanan</th>
+                                    <th>Jenis Pengiriman</th>
+                                    <th>Jenis Pemesanan</th>
+                                    <th>Harga Custom</th>
                                     <th>Status</th>
                                     <th width="160">Action</th>
                                 </tr>
@@ -263,6 +276,39 @@
                             <tbody></tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="purchase-card" id="customPenjualanSection" style="display:none;">
+        <div class="card-header">
+            Custom Barang Penjualan
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="form-group">
+                        <label>Spesifikasi Tambahan</label>
+                        <textarea id="spesifikasi_tambahan" rows="4" class="form-control"
+                            placeholder="Contoh: IBC 1000 Liter saya ingin warna merah"></textarea>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="form-group">
+                        <label>Estimasi Harga</label>
+                        <input type="number" id="harga_estimasi" class="form-control" min="0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="col-12" id="customApprovalSection" style="display:none;">
+                    <button type="button" id="btnLanjutkanCustom" class="btn btn-success">
+                        Lanjutkan
+                    </button>
+                    <button type="button" id="btnTolakCustom" class="btn btn-danger">
+                        Batal
+                    </button>
                 </div>
             </div>
         </div>
@@ -282,6 +328,8 @@
         showUrlBase: "{{ url('/ajax/transaksi/penjualan/show') }}",
         updateUrlBase: "{{ url('/ajax/transaksi/penjualan/update') }}",
         deleteUrlBase: "{{ url('/ajax/transaksi/penjualan/delete') }}",
+        approveCustomUrlBase: "{{ url('/ajax/transaksi/penjualan/custom/approve') }}",
+        rejectCustomUrlBase: "{{ url('/ajax/transaksi/penjualan/custom/reject') }}",
         defaultDate: "{{ date('Y-m-d') }}",
         csrfToken: "{{ csrf_token() }}"
     };

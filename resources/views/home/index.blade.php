@@ -147,6 +147,18 @@
                 </div>
             </div>
             @endif
+
+            @if($user->isAdmin() || $user->isKaryawan() || $user->isCustomer())
+            <div class="col-lg-6 col-md-6 col-sm-12 mb-4">
+                <div class="dashboard-card transaksi-card" onclick="loadContent('{{ route('ajax.transaksi.riwayat.penjualan') }}')">
+                    <div class="dashboard-icon"><i class="fas fa-history"></i></div>
+                    <div class="dashboard-info">
+                        <h5>Riwayat Transaksi</h5>
+                        <p>Lihat riwayat transaksi penjualan yang telah tersimpan.</p>
+                    </div>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>

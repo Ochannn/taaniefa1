@@ -53,6 +53,7 @@
     <script src="{{ asset('js/master.js') }}"></script>
     <script src="{{ asset('js/transaksi_pembelian.js') }}"></script>
     <script src="{{ asset('js/transaksi_penjualan.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 
 

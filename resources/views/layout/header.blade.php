@@ -17,6 +17,7 @@
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- Custom styles for this template-->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.dataTables.css" />
     <link href="{{ asset('css/style.css') }}" rel="stylesheet">
     <link href="{{ asset('css/card.css') }}" rel="stylesheet">
@@ -103,7 +104,7 @@ table.dataTable td {
             </li>
             @endif
 
-            @if($user && ($user->isAdmin() || $user->isKaryawan() || $user->isCustomer()))
+            @if($user->isAdmin() || $user->isKaryawan() || $user->isCustomer())
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUtilities"
                     aria-expanded="true" aria-controls="collapseUtilities">
@@ -120,9 +121,13 @@ table.dataTable td {
                             </a>
                         @endif
 
-                        @if($user->isAdmin() || $user->isKaryawan()|| $user->isCustomer())
+                        @if($user->isAdmin() || $user->isKaryawan() || $user->isCustomer())
                             <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.transaksi.penjualan') }}'); return false;">
                                 Transaksi Penjualan
+                            </a>
+
+                            <a class="collapse-item" href="#" onclick="loadContent('{{ route('ajax.transaksi.riwayat.penjualan') }}'); return false;">
+                                Riwayat Transaksi
                             </a>
                         @endif
                     </div>
