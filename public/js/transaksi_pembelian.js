@@ -1,18 +1,180 @@
 window.initTransaksiPembelian = function (config) {
+    config = config || window.transaksiPembelianConfig;
+
+    if (!config) {
+        return;
+    }
+
     const barangList = config.barangList || [];
     let detailItems = [];
     let editIndex = null;
     let tablePembelian = null;
+    let isSyncingBarangSelect = false;
 
     function formatNumber(value) {
         return new Intl.NumberFormat('id-ID').format(value || 0);
     }
 
-    function clearDetailForm() {
-        $('#detail_kode_barang').val('');
-        $('#detail_nama_barang').val('');
+    function formatKategoriOption(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        return option.text;
+    }
+
+    function formatBarangOption(option) {
+        if (!option.id) {
+            return option.text;
+        }
+
+        const el = $(option.element);
+        const kode = el.data('kode') || '-';
+        const nama = el.data('nama') || '-';
+        const kapasitas = parseFloat(el.data('kapasitas')) || 0;
+
+        return $(`
+            <div class="barang-option-wrap">
+                <div class="barang-option-kiri">
+                    <span class="barang-option-title">${nama}</span>
+                    <span class="barang-option-subtitle">${kode}</span>
+                </div>
+                <div class="barang-option-kanan">
+                    <span class="barang-option-stok">Stok: ${formatNumber(kapasitas)}</span>
+                </div>
+            </div>
+        `);
+    }
+
+    function initSelectBarang() {
+        $('#detail_kategori_barang').select2({
+            width: '100%',
+            placeholder: 'Semua Kategori',
+            templateResult: formatKategoriOption,
+            templateSelection: formatKategoriOption
+        });
+
+        $('#detail_kode_barang').select2({
+            width: '100%',
+            placeholder: 'Pilih Kode Barang',
+            templateResult: formatBarangOption,
+            templateSelection: function (option) {
+                if (!option.id) {
+                    return option.text;
+                }
+
+                const el = $(option.element);
+                return `${el.data('kode')} - ${el.data('nama')}`;
+            },
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+        });
+
+        $('#detail_nama_barang').select2({
+            width: '100%',
+            placeholder: 'Pilih Nama Barang',
+            templateResult: formatBarangOption,
+            templateSelection: function (option) {
+                if (!option.id) {
+                    return option.text;
+                }
+
+                const el = $(option.element);
+                return `${el.data('nama')} - ${el.data('kode')}`;
+            },
+            escapeMarkup: function (markup) {
+                return markup;
+            }
+        });
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function buildBarangOptionKode(barang) {
+        return `
+            <option
+                value="${escapeHtml(barang.kode_barang)}"
+                data-kode="${escapeHtml(barang.kode_barang)}"
+                data-nama="${escapeHtml(barang.nama_barang)}"
+                data-kategori="${escapeHtml(barang.kode_kategori)}"
+                data-nama-kategori="${escapeHtml(barang.nama_kategori)}"
+                data-kapasitas="${escapeHtml(barang.kapasitas)}"
+            >
+                ${escapeHtml(barang.kode_barang)}
+            </option>
+        `;
+    }
+
+    function buildBarangOptionNama(barang) {
+        return `
+            <option
+                value="${escapeHtml(barang.nama_barang)}"
+                data-kode="${escapeHtml(barang.kode_barang)}"
+                data-nama="${escapeHtml(barang.nama_barang)}"
+                data-kategori="${escapeHtml(barang.kode_kategori)}"
+                data-nama-kategori="${escapeHtml(barang.nama_kategori)}"
+                data-kapasitas="${escapeHtml(barang.kapasitas)}"
+            >
+                ${escapeHtml(barang.nama_barang)}
+            </option>
+        `;
+    }
+
+    function applyKategoriFilter() {
+        const selectedKategori = $('#detail_kategori_barang').val();
+
+        const filteredBarang = barangList.filter(function (barang) {
+            if (!selectedKategori) {
+                return true;
+            }
+
+            return String(barang.kode_kategori) === String(selectedKategori);
+        });
+
+        let kodeOptions = '<option value="">Pilih Kode Barang</option>';
+        let namaOptions = '<option value="">Pilih Nama Barang</option>';
+
+        filteredBarang.forEach(function (barang) {
+            kodeOptions += buildBarangOptionKode(barang);
+            namaOptions += buildBarangOptionNama(barang);
+        });
+
+        isSyncingBarangSelect = true;
+
+        $('#detail_kode_barang')
+            .html(kodeOptions)
+            .val('')
+            .trigger('change');
+
+        $('#detail_nama_barang')
+            .html(namaOptions)
+            .val('')
+            .trigger('change');
+
+        isSyncingBarangSelect = false;
+    }
+
+    function clearDetailForm(resetKategori = false) {
+        isSyncingBarangSelect = true;
+
+        if (resetKategori) {
+            $('#detail_kategori_barang').val('').trigger('change');
+        }
+
+        $('#detail_kode_barang').val('').trigger('change');
+        $('#detail_nama_barang').val('').trigger('change');
         $('#detail_qty').val('');
         $('#detail_harga').val('');
+
+        isSyncingBarangSelect = false;
         editIndex = null;
 
         $('#btnTambahDetail')
@@ -31,21 +193,41 @@ window.initTransaksiPembelian = function (config) {
     }
 
     function syncNamaByKode() {
+        if (isSyncingBarangSelect) {
+            return;
+        }
+
         const kode = $('#detail_kode_barang').val();
         const selected = barangList.find(item => item.kode_barang === kode);
 
+        isSyncingBarangSelect = true;
+
         if (selected) {
-            $('#detail_nama_barang').val(selected.nama_barang);
+            $('#detail_nama_barang').val(selected.nama_barang).trigger('change');
+        } else {
+            $('#detail_nama_barang').val('').trigger('change');
         }
+
+        isSyncingBarangSelect = false;
     }
 
     function syncKodeByNama() {
+        if (isSyncingBarangSelect) {
+            return;
+        }
+
         const nama = $('#detail_nama_barang').val();
         const selected = barangList.find(item => item.nama_barang === nama);
 
+        isSyncingBarangSelect = true;
+
         if (selected) {
-            $('#detail_kode_barang').val(selected.kode_barang);
+            $('#detail_kode_barang').val(selected.kode_barang).trigger('change');
+        } else {
+            $('#detail_kode_barang').val('').trigger('change');
         }
+
+        isSyncingBarangSelect = false;
     }
 
     function renderTable() {
@@ -196,7 +378,8 @@ window.initTransaksiPembelian = function (config) {
         detailItems = [];
         editIndex = null;
         clearHeaderForm();
-        clearDetailForm();
+        clearDetailForm(true);
+        applyKategoriFilter();
         renderTable();
         refreshKodePreview();
     }
@@ -373,6 +556,10 @@ window.initTransaksiPembelian = function (config) {
         syncKodeByNama();
     });
 
+    $(document).off('change', '#detail_kategori_barang').on('change', '#detail_kategori_barang', function () {
+        applyKategoriFilter();
+    });
+
     $(document).off('click', '#btnTambahDetail').on('click', '#btnTambahDetail', async function () {
         const itemData = getFormDetail();
 
@@ -469,10 +656,26 @@ window.initTransaksiPembelian = function (config) {
             return;
         }
 
-        $('#detail_kode_barang').val(item.kode_barang);
-        $('#detail_nama_barang').val(item.nama_barang);
+        const barang = barangList.find(data => data.kode_barang === item.kode_barang);
+
+        isSyncingBarangSelect = true;
+
+        if (barang) {
+            $('#detail_kategori_barang').val(barang.kode_kategori || '').trigger('change');
+        }
+
+        isSyncingBarangSelect = false;
+
+        applyKategoriFilter();
+
+        isSyncingBarangSelect = true;
+
+        $('#detail_kode_barang').val(item.kode_barang).trigger('change');
+        $('#detail_nama_barang').val(item.nama_barang).trigger('change');
         $('#detail_qty').val(item.qty);
         $('#detail_harga').val(item.harga_barang);
+
+        isSyncingBarangSelect = false;
 
         editIndex = index;
 
@@ -620,6 +823,9 @@ window.initTransaksiPembelian = function (config) {
             }
         });
     });
+
+    initSelectBarang();
+    applyKategoriFilter();
 
     clearHeaderForm();
     clearDetailForm();

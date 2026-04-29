@@ -1,31 +1,90 @@
-function initDataTable() {
-    if ($('#myTable').length) {
-        if ($.fn.DataTable.isDataTable('#myTable')) {
-            $('#myTable').DataTable().destroy();
-        }
+function initMasterDataTable() {
+    if (typeof $ === 'undefined') {
+        return;
+    }
 
-        $('#myTable').DataTable({
-            paging: true,
-            searching: true,
-            ordering: true
-        });
+    if (!$.fn.DataTable) {
+        return;
+    }
+
+    if (!$('#myTable').length) {
+        return;
+    }
+
+    if ($.fn.DataTable.isDataTable('#myTable')) {
+        $('#myTable').DataTable().destroy();
+    }
+
+    $('#myTable').DataTable({
+        paging: true,
+        searching: true,
+        ordering: true,
+        responsive: true,
+        autoWidth: false,
+        pageLength: 10,
+        language: {
+            search: 'Cari:',
+            lengthMenu: 'Tampilkan _MENU_ data',
+            info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+            infoEmpty: 'Tidak ada data tersedia',
+            zeroRecords: 'Data tidak ditemukan',
+            paginate: {
+                previous: 'Sebelumnya',
+                next: 'Berikutnya'
+            }
+        }
+    });
+}
+
+function getMasterErrorMessage(xhr, defaultMessage) {
+    let message = defaultMessage;
+
+    if (xhr.responseJSON && xhr.responseJSON.errors) {
+        message = Object.values(xhr.responseJSON.errors)
+            .map(function (item) {
+                return item[0];
+            })
+            .join('\n');
+    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+        message = xhr.responseJSON.message;
+    }
+
+    return message;
+}
+
+function reloadMasterContent(indexUrl) {
+    if (typeof window.loadContent === 'function') {
+        window.loadContent(indexUrl);
+    } else {
+        window.location.href = indexUrl;
     }
 }
 
 function initMasterCrud() {
+    if (typeof $ === 'undefined') {
+        return;
+    }
+
     if (typeof window.masterConfig === 'undefined') {
         return;
     }
 
     let config = window.masterConfig;
 
+    $(document).off('click', '.btn-open-add-modal').on('click', '.btn-open-add-modal', function () {
+        if ($(config.addModalSelector).length) {
+            $(config.addModalSelector).modal('show');
+        }
+    });
+
     $(document).off('submit', config.addFormSelector).on('submit', config.addFormSelector, function (e) {
         e.preventDefault();
 
         let $form = $(this);
         let $btnSubmit = $form.find('button[type="submit"]');
+        let originalText = $btnSubmit.html();
 
-        $btnSubmit.prop('disabled', true).text('Menyimpan...');
+        $btnSubmit.prop('disabled', true).html('Menyimpan...');
 
         $.ajax({
             url: config.storeUrl,
@@ -40,32 +99,28 @@ function initMasterCrud() {
                         title: 'Berhasil',
                         text: response.message || 'Data berhasil disimpan.',
                         showConfirmButton: false,
-                        timer: 2200,
+                        timer: 1800,
                         timerProgressBar: true
                     }).then(function () {
-                        loadContent(config.indexUrl);
+                        reloadMasterContent(config.indexUrl);
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Perhatian',
+                        text: response.message || 'Data belum berhasil disimpan.'
                     });
                 }
             },
             error: function (xhr) {
-                let pesan = 'Terjadi kesalahan saat menyimpan data.';
-
-                if (xhr.responseJSON && xhr.responseJSON.errors) {
-                    pesan = Object.values(xhr.responseJSON.errors)
-                        .map(function (item) {
-                            return item[0];
-                        })
-                        .join('\n');
-                }
-
                 Swal.fire({
                     icon: 'error',
                     title: 'Gagal',
-                    text: pesan
+                    text: getMasterErrorMessage(xhr, 'Terjadi kesalahan saat menyimpan data.')
                 });
             },
             complete: function () {
-                $btnSubmit.prop('disabled', false).text('Save Data');
+                $btnSubmit.prop('disabled', false).html(originalText);
             }
         });
     });
@@ -73,18 +128,23 @@ function initMasterCrud() {
     $(document).off('click', '.btn-edit').on('click', '.btn-edit', function () {
         let data = $(this).data();
 
-        $('#edit_kode_lama').val(data.id);
+        if ($(config.editKeySelector).length) {
+            $(config.editKeySelector).val(data.id);
+        }
 
         Object.keys(data).forEach(function (key) {
             if (key !== 'id') {
                 let $field = $('#edit_' + key);
+
                 if ($field.length) {
                     $field.val(data[key]).trigger('change');
                 }
             }
         });
 
-        $('#modalEditData').modal('show');
+        if ($(config.editModalSelector).length) {
+            $(config.editModalSelector).modal('show');
+        }
     });
 
     $(document).off('submit', config.editFormSelector).on('submit', config.editFormSelector, function (e) {
@@ -93,9 +153,10 @@ function initMasterCrud() {
         let id = $(config.editKeySelector).val();
         let $form = $(this);
         let $btnSubmit = $form.find('button[type="submit"]');
+        let originalText = $btnSubmit.html();
         let updateUrl = config.updateUrl.replace(':id', id);
 
-        $btnSubmit.prop('disabled', true).text('Memperbarui...');
+        $btnSubmit.prop('disabled', true).html('Memperbarui...');
 
         $.ajax({
             url: updateUrl,
@@ -110,32 +171,28 @@ function initMasterCrud() {
                         title: 'Berhasil',
                         text: response.message || 'Data berhasil diperbarui.',
                         showConfirmButton: false,
-                        timer: 2200,
+                        timer: 1800,
                         timerProgressBar: true
                     }).then(function () {
-                        loadContent(config.indexUrl);
+                        reloadMasterContent(config.indexUrl);
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Perhatian',
+                        text: response.message || 'Data belum berhasil diperbarui.'
                     });
                 }
             },
             error: function (xhr) {
-                let pesan = 'Gagal memperbarui data.';
-
-                if (xhr.responseJSON && xhr.responseJSON.errors) {
-                    pesan = Object.values(xhr.responseJSON.errors)
-                        .map(function (item) {
-                            return item[0];
-                        })
-                        .join('\n');
-                }
-
                 Swal.fire({
                     icon: 'error',
                     title: 'Gagal',
-                    text: pesan
+                    text: getMasterErrorMessage(xhr, 'Gagal memperbarui data.')
                 });
             },
             complete: function () {
-                $btnSubmit.prop('disabled', false).text('Update Data');
+                $btnSubmit.prop('disabled', false).html(originalText);
             }
         });
     });
@@ -150,7 +207,8 @@ function initMasterCrud() {
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal'
+            cancelButtonText: 'Batal',
+            reverseButtons: true
         }).then(function (result) {
             if (result.isConfirmed) {
                 $.ajax({
@@ -167,18 +225,24 @@ function initMasterCrud() {
                                 title: 'Berhasil',
                                 text: response.message || 'Data berhasil dihapus.',
                                 showConfirmButton: false,
-                                timer: 2200,
+                                timer: 1800,
                                 timerProgressBar: true
                             }).then(function () {
-                                loadContent(config.indexUrl);
+                                reloadMasterContent(config.indexUrl);
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Perhatian',
+                                text: response.message || 'Data belum berhasil dihapus.'
                             });
                         }
                     },
-                    error: function () {
+                    error: function (xhr) {
                         Swal.fire({
                             icon: 'error',
                             title: 'Gagal',
-                            text: 'Data gagal dihapus.'
+                            text: getMasterErrorMessage(xhr, 'Data gagal dihapus.')
                         });
                     }
                 });
@@ -201,19 +265,17 @@ function initMasterCrud() {
             $(config.editFormSelector)[0].reset();
         }
 
-        $(config.editKeySelector).val('');
+        if ($(config.editKeySelector).length) {
+            $(config.editKeySelector).val('');
+        }
     });
 }
 
-function loadContent(url) {
-    $.get(url, function (response) {
-        $('#main-content').html(response);
-        initDataTable();
-        initMasterCrud();
-    });
-}
+window.initMasterPage = function () {
+    initMasterDataTable();
+    initMasterCrud();
+};
 
 $(document).ready(function () {
-    initDataTable();
-    initMasterCrud();
+    window.initMasterPage();
 });

@@ -59,17 +59,33 @@
             <div class="row align-items-end">
                 <div class="col-lg-3 col-md-6">
                     <div class="form-group">
+                        <label>Pilih Kategori Barang</label>
+                        <select id="detail_kategori_barang" class="form-control">
+                            <option value="">Semua Kategori</option>
+                            @foreach($kategoris as $kategori)
+                                <option value="{{ $kategori->kode_kategori }}">
+                                    {{ $kategori->nama_kategori }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="form-group">
                         <label>Pilih Kode Barang</label>
-                        <select id="detail_kode_barang" class="form-control">
+                        <select id="detail_kode_barang" class="form-control select-barang-custom">
                             <option value="">Pilih Kode Barang</option>
                             @foreach($barangs as $barang)
                                 <option
                                     value="{{ $barang->kode_barang }}"
                                     data-kode="{{ $barang->kode_barang }}"
                                     data-nama="{{ $barang->nama_barang }}"
+                                    data-kategori="{{ $barang->kode_kategori }}"
+                                    data-nama-kategori="{{ $barang->nama_kategori }}"
                                     data-kapasitas="{{ $barang->kapasitas }}"
                                 >
-                                    {{ $barang->kode_barang }} - {{ $barang->kapasitas }}
+                                    {{ $barang->kode_barang }}
                                 </option>
                             @endforeach
                         </select>
@@ -79,23 +95,25 @@
                 <div class="col-lg-3 col-md-6">
                     <div class="form-group">
                         <label>Pilih Nama Barang</label>
-                        <select id="detail_nama_barang" class="form-control">
+                        <select id="detail_nama_barang" class="form-control select-barang-custom">
                             <option value="">Pilih Nama Barang</option>
                             @foreach($barangs as $barang)
                                 <option
                                     value="{{ $barang->nama_barang }}"
                                     data-kode="{{ $barang->kode_barang }}"
                                     data-nama="{{ $barang->nama_barang }}"
+                                    data-kategori="{{ $barang->kode_kategori }}"
+                                    data-nama-kategori="{{ $barang->nama_kategori }}"
                                     data-kapasitas="{{ $barang->kapasitas }}"
                                 >
-                                    {{ $barang->nama_barang }} - {{ $barang->kapasitas }}
+                                    {{ $barang->nama_barang }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
                 </div>
 
-                <div class="col-lg-2 col-md-4">
+                <div class="col-lg-1 col-md-4">
                     <div class="form-group">
                         <label>Qty</label>
                         <input type="number" id="detail_qty" class="form-control" min="1" step="1" placeholder="Qty">
@@ -109,8 +127,8 @@
                     </div>
                 </div>
 
-                <div class="col-lg-2 col-md-4">
-                    <button type="button" id="btnTambahDetail" class="btn btn-info btn-block btn-soft-primary">
+                <div class="col-lg-12 col-md-4 mt-2">
+                    <button type="button" id="btnTambahDetail" class="btn btn-info btn-soft-primary">
                         Tambah Item
                     </button>
                 </div>

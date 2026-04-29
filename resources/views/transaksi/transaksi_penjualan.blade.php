@@ -3,8 +3,6 @@
 
     <input type="hidden" id="form_mode_penjualan" value="create">
     <input type="hidden" id="edit_kode_pesanan" value="">
-    <input type="hidden" id="status_custom" value="">
-
     <div class="purchase-card">
         <div class="card-header">
             Form Transaksi Penjualan
@@ -48,35 +46,61 @@
                             </div>
                         @endif
                     </div>
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <label>Jenis Pengiriman</label>
-                            <select id="jenis_pengiriman" class="form-control">
-                                <option value="">Pilih Jenis Pengiriman</option>
-                                <option value="Reguler">Reguler</option>
-                                <option value="Express">Express</option>
-                                <option value="Preorder">Preorder</option>
-                            </select>
-                        </div>
-                    </div>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Tujuan Pengiriman</label>
+                                <select id="rajaongkir_destination" class="form-control"></select>
 
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <label>Jenis Pemesanan</label>
-                            <select id="jenis_pemesanan" class="form-control">
-                                <option value="">Pilih Jenis Pemesanan</option>
-                                <option value="Standart">Standart</option>
-                                <option value="Custom">Custom</option>
-                            </select>
+                                <input type="hidden" id="provinsi_tujuan">
+                                <input type="hidden" id="kota_tujuan">
+                                <input type="hidden" id="jenis_pengiriman">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="col-lg-4 col-md-6">
-                        <div class="form-group">
-                            <label>Ongkir Pengiriman</label>
-                            <input type="number" id="ongkir_pesanan" class="form-control soft-readonly" min="0" step="1" value="0" readonly>
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Kurir</label>
+                                <select id="kurir" class="form-control">
+                                    <option value="">Pilih Kurir</option>
+                                    <option value="jne">JNE</option>
+                                    <option value="pos">POS Indonesia</option>
+                                    <option value="tiki">TIKI</option>
+                                    <option value="jnt">J&T</option>
+                                    <option value="sicepat">SiCepat</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Berat Kiriman</label>
+                                <input type="number" id="berat_pengiriman" class="form-control" value="1000" min="1">
+                                <small class="text-muted">Berat dalam gram.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Layanan Kurir</label>
+                                <select id="layanan_kurir" class="form-control">
+                                    <option value="">Cek ongkir terlebih dahulu</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6">
+                            <div class="form-group">
+                                <label>Ongkir Pengiriman</label>
+                                <input type="number" id="ongkir_pesanan" class="form-control soft-readonly" min="0" step="1" value="0" readonly>
+                                <input type="hidden" id="estimasi_pengiriman">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 col-md-6 d-flex align-items-end">
+                            <button type="button" id="btnCekOngkir" class="btn btn-info btn-soft-primary">
+                                Cek Ongkir
+                            </button>
+                        </div>
 
                     <div class="col-lg-4 col-md-6">
                         <div class="form-group">
@@ -119,10 +143,104 @@
 
     <div class="purchase-card">
         <div class="card-header">
+            Metode Pembayaran
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+                <div class="col-lg-4 col-md-6">
+                    <div class="form-group">
+                        <label>Metode Pembayaran</label>
+                        <select id="metode_pembayaran" class="form-control">
+                            <option value="">Pilih Metode Pembayaran</option>
+                            <option value="Transfer Bank">Transfer Bank</option>
+                            <option value="QRIS">QRIS</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-6" id="wrap_bank_tujuan" style="display: none;">
+                    <div class="form-group">
+                        <label>Bank Tujuan</label>
+                        <select id="bank_tujuan" class="form-control">
+                            <option value="">Pilih Rekening</option>
+
+                            @foreach($rekeningPembayaran->where('metode_pembayaran', 'Transfer Bank') as $rekening)
+                                <option
+                                    value="{{ $rekening->nama_bank }}"
+                                    data-bank="{{ $rekening->nama_bank }}"
+                                    data-rekening="{{ $rekening->nomor_rekening }}"
+                                    data-atas-nama="{{ $rekening->atas_nama }}"
+                                >
+                                    {{ $rekening->nama_bank }} - {{ $rekening->nomor_rekening }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="info_transfer_bank" class="payment-info-box" style="display: none;">
+                <h6>Informasi Transfer</h6>
+                <p class="mb-1">Bank: <strong id="info_bank">-</strong></p>
+                <p class="mb-1">Nomor Rekening: <strong id="info_rekening">-</strong></p>
+                <p class="mb-0">Atas Nama: <strong id="info_atas_nama">-</strong></p>
+            </div>
+
+            <div id="info_qris" class="payment-info-box" style="display: none;">
+                <h6>Pembayaran QRIS</h6>
+
+                @php
+                    $qris = $rekeningPembayaran->firstWhere('metode_pembayaran', 'QRIS');
+                @endphp
+
+                @if($qris && $qris->gambar_qris)
+                    <img
+                        src="{{ asset($qris->gambar_qris) }}"
+                        alt="QRIS CV Syavir Jaya Utama"
+                        style="max-width: 240px; width: 100%; border-radius: 12px; border: 1px solid #e8edf5;"
+                    >
+
+                    <p class="mt-2 mb-0 text-muted">
+                        Scan QRIS untuk melakukan pembayaran.
+                    </p>
+                @else
+                    <p class="mb-0 text-muted">
+                        Gambar QRIS belum tersedia.
+                    </p>
+                @endif
+            </div>
+
+            <div id="info_cash" class="payment-info-box" style="display: none;">
+                <h6>Pembayaran Cash</h6>
+                <p class="mb-0 text-muted">
+                    Pembayaran dilakukan secara tunai kepada admin atau pegawai yang bertugas.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="purchase-card">
+        <div class="card-header">
             Detail Barang Penjualan
         </div>
         <div class="card-body">
             <div class="row align-items-end">
+                <div class="col-lg-3 col-md-6">
+                    <div class="form-group">
+                        <label>Pilih Kategori Barang</label>
+                        <select id="detail_kategori_barang_penjualan" class="form-control">
+                            <option value="">Semua Kategori</option>
+                            @foreach($kategoris as $kategori)
+                                <option value="{{ $kategori->kode_kategori }}">
+                                    {{ $kategori->nama_kategori }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
                 <div class="col-lg-3 col-md-6">
                     <div class="form-group">
                         <label>Pilih Kode Barang</label>
@@ -133,6 +251,8 @@
                                     value="{{ $barang->kode_barang }}"
                                     data-kode="{{ $barang->kode_barang }}"
                                     data-nama="{{ $barang->nama_barang }}"
+                                    data-kategori="{{ $barang->kode_kategori }}"
+                                    data-nama-kategori="{{ $barang->nama_kategori }}"
                                     data-kapasitas="{{ $barang->kapasitas }}"
                                     data-harga="{{ $barang->harga_jual }}"
                                     {{ (float)$barang->kapasitas <= 0 ? 'disabled' : '' }}
@@ -154,6 +274,8 @@
                                     value="{{ $barang->nama_barang }}"
                                     data-kode="{{ $barang->kode_barang }}"
                                     data-nama="{{ $barang->nama_barang }}"
+                                    data-kategori="{{ $barang->kode_kategori }}"
+                                    data-nama-kategori="{{ $barang->nama_kategori }}"
                                     data-kapasitas="{{ $barang->kapasitas }}"
                                     data-harga="{{ $barang->harga_jual }}"
                                     {{ (float)$barang->kapasitas <= 0 ? 'disabled' : '' }}
@@ -165,7 +287,7 @@
                     </div>
                 </div>
 
-                <div class="col-lg-2 col-md-4">
+                <div class="col-lg-1 col-md-4">
                     <div class="form-group">
                         <label>Qty</label>
                         <input type="number" id="detail_qty_penjualan" class="form-control" min="1" step="1" placeholder="Qty">
@@ -179,8 +301,8 @@
                     </div>
                 </div>
 
-                <div class="col-lg-2 col-md-4">
-                    <button type="button" id="btnTambahDetailPenjualan" class="btn btn-info btn-block btn-soft-primary">
+                <div class="col-lg-12 col-md-4 mt-2">
+                    <button type="button" id="btnTambahDetailPenjualan" class="btn btn-info btn-soft-primary">
                         Tambah Item
                     </button>
                 </div>
@@ -267,10 +389,10 @@
                                     <th>Kode Customer</th>
                                     <th>Customer</th>
                                     <th>Jenis Pengiriman</th>
-                                    <th>Jenis Pemesanan</th>
-                                    <th>Harga Custom</th>
-                                    <th>Status</th>
-                                    <th width="160">Action</th>
+                                    <th>Status Pesanan</th>
+                                    <th>Status Pembayaran</th>
+                                    <th>Grand Total</th>
+                                    <th width="220">Action</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -281,38 +403,49 @@
         </div>
     </div>
 
-    <div class="purchase-card" id="customPenjualanSection" style="display:none;">
-        <div class="card-header">
-            Custom Barang Penjualan
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-lg-8">
-                    <div class="form-group">
-                        <label>Spesifikasi Tambahan</label>
-                        <textarea id="spesifikasi_tambahan" rows="4" class="form-control"
-                            placeholder="Contoh: IBC 1000 Liter saya ingin warna merah"></textarea>
+    <div class="modal fade" id="modalUploadBuktiPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalUploadBuktiPenjualanLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <form id="formUploadBuktiPenjualan" enctype="multipart/form-data">
+                @csrf
+
+                <input type="hidden" id="upload_kode_pesanan" name="kode_pesanan">
+
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalUploadBuktiPenjualanLabel">Upload Bukti Pembayaran</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <p class="text-muted mb-3">
+                            Unggah bukti pembayaran untuk transaksi <strong id="upload_kode_pesanan_text">-</strong>.
+                        </p>
+
+                        <div class="form-group">
+                            <label>Bukti Pembayaran</label>
+                            <input type="file" name="bukti_pembayaran" id="bukti_pembayaran" class="form-control" accept=".jpg,.jpeg,.png,.pdf" required>
+                            <small class="text-muted">
+                                Format: JPG, JPEG, PNG, atau PDF. Maksimal 2 MB.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-dismiss="modal">
+                            Batal
+                        </button>
+
+                        <button type="submit" class="btn btn-success">
+                            Upload Bukti
+                        </button>
                     </div>
                 </div>
-
-                <div class="col-lg-4">
-                    <div class="form-group">
-                        <label>Estimasi Harga</label>
-                        <input type="number" id="harga_estimasi" class="form-control" min="0" step="0.01">
-                    </div>
-                </div>
-
-                <div class="col-12" id="customApprovalSection" style="display:none;">
-                    <button type="button" id="btnLanjutkanCustom" class="btn btn-success">
-                        Lanjutkan
-                    </button>
-                    <button type="button" id="btnTolakCustom" class="btn btn-danger">
-                        Batal
-                    </button>
-                </div>
-            </div>
+            </form>
         </div>
     </div>
+
 </div>
 
 <script>
@@ -328,8 +461,12 @@
         showUrlBase: "{{ url('/ajax/transaksi/penjualan/show') }}",
         updateUrlBase: "{{ url('/ajax/transaksi/penjualan/update') }}",
         deleteUrlBase: "{{ url('/ajax/transaksi/penjualan/delete') }}",
-        approveCustomUrlBase: "{{ url('/ajax/transaksi/penjualan/custom/approve') }}",
-        rejectCustomUrlBase: "{{ url('/ajax/transaksi/penjualan/custom/reject') }}",
+        uploadBuktiUrlBase: "{{ url('/ajax/transaksi/penjualan/upload-bukti') }}",
+        validasiPembayaranUrlBase: "{{ url('/ajax/transaksi/penjualan/validasi-pembayaran') }}",
+        tolakPembayaranUrlBase: "{{ url('/ajax/transaksi/penjualan/tolak-pembayaran') }}",
+        updateStatusUrlBase: "{{ url('/ajax/transaksi/penjualan/update-status') }}",
+        searchDestinationUrl: "{{ route('ajax.rajaongkir.search_destination') }}",
+        checkOngkirUrl: "{{ route('ajax.rajaongkir.check_ongkir') }}",
         defaultDate: "{{ date('Y-m-d') }}",
         csrfToken: "{{ csrf_token() }}"
     };

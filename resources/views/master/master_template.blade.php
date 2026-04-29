@@ -1,13 +1,32 @@
-@include('master.tbowser')
+<div class="master-page">
+    <div class="content-card master-card">
+        <div class="master-top">
+            <div>
+                <h4 class="card-title">Data {{ $config['title'] }}</h4>
+                <p class="card-subtitle">
+                    Kelola data {{ strtolower($config['title']) }} pada tabel berikut.
+                </p>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-open-add-modal">
+                <i class="fas fa-plus mr-1"></i>
+                Tambah Data
+            </button>
+        </div>
+
+        @include('master.tbowser')
+    </div>
+</div>
 
 <div class="modal fade" id="modalTambahData" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <form id="formTambahData">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form id="formTambahData" class="w-100">
             @csrf
+
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">Tambah Data {{ $config['title'] }}</h5>
-                    <button type="button" class="close" data-dismiss="modal">
+                    <button type="button" class="close text-white" data-dismiss="modal">
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
@@ -15,7 +34,7 @@
                 <div class="modal-body">
                     @foreach ($formFields as $field)
                         <div class="form-group">
-                            <label for="{{ $field['name'] }}">{{ $field['label'] }}</label>
+                            <label>{{ $field['label'] }}</label>
 
                             @if($field['type'] === 'select')
                                 <select
@@ -25,6 +44,7 @@
                                     @if(empty($field['readonly'])) required @endif
                                 >
                                     <option value="">Pilih {{ $field['label'] }}</option>
+
                                     @foreach (($fieldOptions[$field['options_key']] ?? []) as $option)
                                         <option value="{{ $option->value }}">
                                             {{ $option->text }}
@@ -47,27 +67,29 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Save Data</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">
+                        Batal
+                    </button>
+
+                    <button type="submit" class="btn btn-primary">
+                        Simpan Data
+                    </button>
                 </div>
             </div>
         </form>
     </div>
 </div>
 
-<button type="button" class="btn btn-primary mt-3" data-toggle="modal" data-target="#modalTambahData">
-    Tambah Data
-</button>
-
 <div class="modal fade" id="modalEditData" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <form id="formEditData">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form id="formEditData" class="w-100">
             @csrf
             <input type="hidden" id="edit_kode_lama">
+
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">Edit Data {{ $config['title'] }}</h5>
-                    <button type="button" class="close" data-dismiss="modal">
+                    <button type="button" class="close text-white" data-dismiss="modal">
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
@@ -75,7 +97,7 @@
                 <div class="modal-body">
                     @foreach ($formFields as $field)
                         <div class="form-group">
-                            <label for="edit_{{ $field['name'] }}">{{ $field['label'] }}</label>
+                            <label>{{ $field['label'] }}</label>
 
                             @if($field['type'] === 'select')
                                 <select
@@ -107,8 +129,13 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Update Data</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">
+                        Batal
+                    </button>
+
+                    <button type="submit" class="btn btn-primary">
+                        Update Data
+                    </button>
                 </div>
             </div>
         </form>
@@ -130,4 +157,8 @@ window.masterConfig = {
     autoCodeSelector: '#{{ $primaryKey }}',
     nextKode: "{{ $nextKode }}"
 };
+
+if (typeof window.initMasterPage === 'function') {
+    window.initMasterPage();
+}
 </script>

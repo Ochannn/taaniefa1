@@ -245,6 +245,48 @@ class MasterController extends Controller
                     'deskripsi_barang',
                 ],
             ],
+
+            'rekening-pembayaran' => [
+                'table' => 'master_rekening_pembayaran',
+                'primaryKey' => 'kode_rekening',
+                'prefix' => 'KRP',
+                'title' => 'Master Rekening Pembayaran',
+                'useKodeUser' => false,
+                'columns' => [
+                    ['label' => 'Kode Rekening', 'field' => 'kode_rekening'],
+                    ['label' => 'Metode Pembayaran', 'field' => 'metode_pembayaran'],
+                    ['label' => 'Nama Bank', 'field' => 'nama_bank'],
+                    ['label' => 'Nomor Rekening', 'field' => 'nomor_rekening'],
+                    ['label' => 'Atas Nama', 'field' => 'atas_nama'],
+                    ['label' => 'Gambar QRIS', 'field' => 'gambar_qris'],
+                    ['label' => 'Status Aktif', 'field' => 'status_aktif'],
+                ],
+                'formFields' => [
+                    ['name' => 'kode_rekening', 'label' => 'Kode Rekening', 'type' => 'text', 'readonly' => true],
+                    ['name' => 'metode_pembayaran', 'label' => 'Metode Pembayaran', 'type' => 'select', 'options_key' => 'metode_pembayaran', 'readonly' => false],
+                    ['name' => 'nama_bank', 'label' => 'Nama Bank', 'type' => 'text', 'readonly' => false],
+                    ['name' => 'nomor_rekening', 'label' => 'Nomor Rekening', 'type' => 'text', 'readonly' => false],
+                    ['name' => 'atas_nama', 'label' => 'Atas Nama', 'type' => 'text', 'readonly' => false],
+                    ['name' => 'gambar_qris', 'label' => 'Path Gambar QRIS', 'type' => 'text', 'readonly' => false],
+                    ['name' => 'status_aktif', 'label' => 'Status Aktif', 'type' => 'select', 'options_key' => 'status_aktif', 'readonly' => false],
+                ],
+                'validation' => [
+                    'metode_pembayaran' => 'required|string|max:50',
+                    'nama_bank' => 'nullable|string|max:50',
+                    'nomor_rekening' => 'nullable|string|max:100',
+                    'atas_nama' => 'nullable|string|max:100',
+                    'gambar_qris' => 'nullable|string|max:255',
+                    'status_aktif' => 'required|in:0,1',
+                ],
+                'fillableFields' => [
+                    'metode_pembayaran',
+                    'nama_bank',
+                    'nomor_rekening',
+                    'atas_nama',
+                    'gambar_qris',
+                    'status_aktif',
+                ],
+            ],
         ];
 
         if (!isset($configs[$module])) {
@@ -298,6 +340,34 @@ class MasterController extends Controller
                         'text' => $item->kode_role . ' - ' . $item->nama_role,
                     ];
                 });
+        }
+
+        if ($module === 'rekening-pembayaran') {
+            $fieldOptions['metode_pembayaran'] = collect([
+                (object) [
+                    'value' => 'Transfer Bank',
+                    'text' => 'Transfer Bank',
+                ],
+                (object) [
+                    'value' => 'QRIS',
+                    'text' => 'QRIS',
+                ],
+                (object) [
+                    'value' => 'Cash',
+                    'text' => 'Cash',
+                ],
+            ]);
+
+            $fieldOptions['status_aktif'] = collect([
+                (object) [
+                    'value' => '1',
+                    'text' => 'Aktif',
+                ],
+                (object) [
+                    'value' => '0',
+                    'text' => 'Tidak Aktif',
+                ],
+            ]);
         }
 
         if ($module === 'barang') {

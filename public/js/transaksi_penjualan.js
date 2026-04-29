@@ -5,6 +5,9 @@ window.initTransaksiPenjualan = function (config) {
     let tablePenjualan = null;
     let formLocked = false;
     let isSyncingBarangSelect = false;
+    
+
+
 
     function formatNumber(value) {
         return new Intl.NumberFormat('id-ID').format(value || 0);
@@ -50,9 +53,16 @@ window.initTransaksiPenjualan = function (config) {
             </div>
         `);
     }
-    initSelectBarang();
+
 
     function initSelectBarang() {
+        $('#detail_kategori_barang_penjualan').select2({
+            width: '100%',
+            placeholder: 'Semua Kategori',
+            templateResult: formatKategoriOption,
+            templateSelection: formatKategoriOption
+        });
+
         $('#detail_kode_barang_penjualan').select2({
             width: '100%',
             placeholder: 'Pilih Kode Barang',
@@ -87,6 +97,10 @@ window.initTransaksiPenjualan = function (config) {
             }
         });
     }
+
+    $(document).off('change', '#detail_kategori_barang_penjualan').on('change', '#detail_kategori_barang_penjualan', function () {
+        applyKategoriFilter();
+    });
 
     function setFormLockState(locked) {
         formLocked = locked;
@@ -143,8 +157,12 @@ window.initTransaksiPenjualan = function (config) {
         }
     }
 
-    function clearDetailForm() {
+    function clearDetailForm(resetKategori = false) {
         isSyncingBarangSelect = true;
+
+        if (resetKategori) {
+            $('#detail_kategori_barang_penjualan').val('').trigger('change.select2');
+        }
 
         $('#detail_kode_barang_penjualan').val('').trigger('change.select2');
         $('#detail_nama_barang_penjualan').val('').trigger('change.select2');
@@ -177,11 +195,15 @@ window.initTransaksiPenjualan = function (config) {
         $('#alamat_kirim_pesanan').val('');
         $('#ongkir_pesanan').val(0);
         $('#catatan_pesanan').val('');
-        $('#spesifikasi_tambahan').val('');
-        $('#harga_estimasi').val('');
-        $('#status_custom').val('');
-        $('#customPenjualanSection').hide();
-        $('#customApprovalSection').hide();
+        $('#metode_pembayaran').val('');
+        $('#bank_tujuan').val('');
+        $('#wrap_bank_tujuan').hide();
+        $('#info_transfer_bank').hide();
+        $('#info_qris').hide();
+        $('#info_cash').hide();
+        $('#info_bank').text('-');
+        $('#info_rekening').text('-');
+        $('#info_atas_nama').text('-');
 
         $('#form_mode_penjualan').val('create');
         $('#edit_kode_pesanan').val('');
@@ -236,6 +258,7 @@ window.initTransaksiPenjualan = function (config) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+
     function setOngkirByJenis() {
         const jenis = $('#jenis_pengiriman').val();
         let ongkir = 0;
@@ -250,6 +273,51 @@ window.initTransaksiPenjualan = function (config) {
 
         $('#ongkir_pesanan').val(ongkir);
         renderTable();
+    }
+
+    function initPaymentMethod() {
+        $(document).off('change', '#metode_pembayaran').on('change', '#metode_pembayaran', function () {
+            const metode = $(this).val();
+
+            $('#wrap_bank_tujuan').hide();
+            $('#info_transfer_bank').hide();
+            $('#info_qris').hide();
+            $('#info_cash').hide();
+
+            $('#bank_tujuan').val('');
+            $('#info_bank').text('-');
+            $('#info_rekening').text('-');
+            $('#info_atas_nama').text('-');
+
+            if (metode === 'Transfer Bank') {
+                $('#wrap_bank_tujuan').show();
+            }
+
+            if (metode === 'QRIS') {
+                $('#info_qris').show();
+            }
+
+            if (metode === 'Cash') {
+                $('#info_cash').show();
+            }
+        });
+
+        $(document).off('change', '#bank_tujuan').on('change', '#bank_tujuan', function () {
+            const selected = $(this).find(':selected');
+
+            const bank = selected.data('bank') || '-';
+            const rekening = selected.data('rekening') || '-';
+            const atasNama = selected.data('atas-nama') || '-';
+
+            if ($(this).val()) {
+                $('#info_bank').text(bank);
+                $('#info_rekening').text(rekening);
+                $('#info_atas_nama').text(atasNama);
+                $('#info_transfer_bank').show();
+            } else {
+                $('#info_transfer_bank').hide();
+            }
+        });
     }
     
     function renderTable() {
@@ -400,18 +468,23 @@ window.initTransaksiPenjualan = function (config) {
         const payload = {
             _token: config.csrfToken,
             kode_customer: config.requireCustomerSelection
-                ? $('#kode_customer').val()
-                : (config.customerAktifKode || $('#kode_customer').val()),
-            tgl_pesanan: $('#tgl_pesanan').val(),
-            jenis_pengiriman: $('#jenis_pengiriman').val(),
-            jenis_pemesanan: $('#jenis_pemesanan').val(),
-            status_pesanan: $('#status_pesanan').val(),
-            alamat_kirim_pesanan: $('#alamat_kirim_pesanan').val(),
+                ? ($('#kode_customer').val() || '')
+                : (config.customerAktifKode || $('#kode_customer').val() || ''),
+            tgl_pesanan: $('#tgl_pesanan').val() || '',
+            jenis_pengiriman: $('#jenis_pengiriman').val() || '',
+            jenis_pemesanan: $('#jenis_pemesanan').val() || 'Standart',
+            status_pesanan: $('#status_pesanan').val() || 'Pending',
+            alamat_kirim_pesanan: $('#alamat_kirim_pesanan').val() || '',
             ongkir_pesanan: $('#ongkir_pesanan').val() || 0,
-            catatan_pesanan: $('#catatan_pesanan').val(),
-            spesifikasi_tambahan: $('#spesifikasi_tambahan').val(),
-            harga_estimasi: $('#harga_estimasi').val() || '',
-            status_custom: $('#status_custom').val() || ''
+            catatan_pesanan: $('#catatan_pesanan').val() || '',
+            metode_pembayaran: $('#metode_pembayaran').val() || '',
+            provinsi_tujuan: $('#provinsi_tujuan').val() || '',
+            kota_tujuan: $('#kota_tujuan').val() || '',
+            kurir: $('#kurir').val() || '',
+            layanan_kurir: $('#layanan_kurir').val() || '',
+            estimasi_pengiriman: $('#estimasi_pengiriman').val() || '',
+            bank_tujuan: $('#bank_tujuan').val() || ''
+            
         };
 
         detailItems.forEach((item, index) => {
@@ -440,10 +513,153 @@ window.initTransaksiPenjualan = function (config) {
         detailItems = [];
         editIndex = null;
         clearHeaderForm();
-        clearDetailForm();
+        clearDetailForm(true);
+        applyKategoriFilter();
         renderTable();
         refreshKodePreview();
     }
+
+    $(document).off('click', '.btn-update-status-pesanan').on('click', '.btn-update-status-pesanan', function () {
+        const kodePesanan = $(this).data('kode');
+        const statusSekarang = $(this).data('status') || 'Diproses';
+
+        Swal.fire({
+            title: 'Ubah Status Pesanan',
+            input: 'select',
+            inputOptions: {
+                'Diproses': 'Diproses',
+                'Dikirim': 'Dikirim',
+                'Selesai': 'Selesai',
+                'Batal': 'Batal'
+            },
+            inputValue: statusSekarang,
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: `${config.updateStatusUrlBase}/${kodePesanan}`,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken,
+                    status_pesanan: result.value
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message || 'Status pesanan berhasil diperbarui.'
+                    });
+
+                    if (tablePenjualan) {
+                        tablePenjualan.ajax.reload(null, false);
+                    }
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal update status',
+                        html: getErrorMessage(xhr, 'Status pesanan gagal diperbarui.')
+                    });
+                }
+            });
+        });
+    });
+
+    $(document).off('click', '.btn-tolak-pembayaran').on('click', '.btn-tolak-pembayaran', function () {
+        const kodePesanan = $(this).data('kode');
+
+        Swal.fire({
+            title: 'Tolak pembayaran?',
+            input: 'textarea',
+            inputLabel: 'Catatan Penolakan',
+            inputPlaceholder: 'Contoh: Bukti pembayaran tidak jelas atau nominal tidak sesuai.',
+            inputAttributes: {
+                maxlength: 255
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Tolak',
+            cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: `${config.tolakPembayaranUrlBase}/${kodePesanan}`,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken,
+                    catatan_validasi: result.value || ''
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message || 'Pembayaran berhasil ditolak.'
+                    });
+
+                    if (tablePenjualan) {
+                        tablePenjualan.ajax.reload(null, false);
+                    }
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal menolak',
+                        html: getErrorMessage(xhr, 'Pembayaran gagal ditolak.')
+                    });
+                }
+            });
+        });
+    });
+
+    $(document).off('click', '.btn-validasi-pembayaran').on('click', '.btn-validasi-pembayaran', function () {
+        const kodePesanan = $(this).data('kode');
+
+        Swal.fire({
+            title: 'Validasi pembayaran?',
+            text: `Pembayaran transaksi ${kodePesanan} akan disetujui dan status pesanan menjadi Diproses.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, validasi',
+            cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: `${config.validasiPembayaranUrlBase}/${kodePesanan}`,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message || 'Pembayaran berhasil divalidasi.'
+                    });
+
+                    if (tablePenjualan) {
+                        tablePenjualan.ajax.reload(null, false);
+                    }
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal validasi',
+                        html: getErrorMessage(xhr, 'Pembayaran gagal divalidasi.')
+                    });
+                }
+            });
+        });
+    });
 
     function initDataTablePenjualan() {
         if ($.fn.DataTable.isDataTable('#tableViewPenjualan')) {
@@ -477,26 +693,21 @@ window.initTransaksiPenjualan = function (config) {
                     }
                 },
                 {
-                    data: 'jenis_pemesanan',
-                    render: function (data) {
-                        return data ? data : '-';
-                    }
-                },
-                {
-                    data: 'harga_estimasi',
-                    render: function (data, type, row) {
-                        if ((row.jenis_pemesanan || '') !== 'Custom') {
-                            return '-';
-                        }
-
-                        const nilai = parseFloat(data) || 0;
-                        return nilai > 0 ? formatRupiah(nilai) : '0';
-                    }
-                },
-                {
                     data: 'status_pesanan',
                     render: function (data) {
                         return data ? data : '-';
+                    }
+                },
+                {
+                    data: 'status_pembayaran',
+                    render: function (data) {
+                        return data ? data : '-';
+                    }
+                },
+                {
+                    data: 'grand_total_pesanan',
+                    render: function (data) {
+                        return formatRupiah(parseFloat(data) || 0);
                     }
                 },
                 {
@@ -504,8 +715,11 @@ window.initTransaksiPenjualan = function (config) {
                     orderable: false,
                     searchable: false,
                     render: function (data) {
+                        const statusPembayaran = data.status_pembayaran || 'Belum Dibayar';
+                        const statusPesanan = data.status_pesanan || 'Pending';
+
                         if (config.isAdmin) {
-                            return `
+                            let html = `
                                 <button type="button" class="btn btn-sm btn-primary btn-edit-penjualan" data-kode="${data.kode_pesanan}">
                                     Edit
                                 </button>
@@ -513,9 +727,40 @@ window.initTransaksiPenjualan = function (config) {
                                     Delete
                                 </button>
                             `;
+
+                            if (data.bukti_pembayaran) {
+                                html += `
+                                    <a href="/storage/${data.bukti_pembayaran}" target="_blank" class="btn btn-sm btn-secondary">
+                                        Lihat Bukti
+                                    </a>
+                                `;
+                            }
+
+                            if (statusPembayaran === 'Menunggu Validasi') {
+                                html += `
+                                    <button type="button" class="btn btn-sm btn-success btn-validasi-pembayaran" data-kode="${data.kode_pesanan}">
+                                        Validasi
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-warning btn-tolak-pembayaran" data-kode="${data.kode_pesanan}">
+                                        Tolak
+                                    </button>
+                                `;
+                            }
+
+                            if (statusPembayaran === 'Lunas') {
+                                html += `
+                                    <button type="button" class="btn btn-sm btn-info btn-update-status-pesanan"
+                                        data-kode="${data.kode_pesanan}"
+                                        data-status="${statusPesanan}">
+                                        Ubah Status
+                                    </button>
+                                `;
+                            }
+
+                            return html;
                         }
 
-                        if ((data.status_pesanan || '').toLowerCase() === 'pending') {
+                        if (statusPesanan === 'Pending' && statusPembayaran === 'Belum Dibayar') {
                             return `
                                 <button type="button" class="btn btn-sm btn-primary btn-edit-penjualan" data-kode="${data.kode_pesanan}">
                                     Edit
@@ -523,10 +768,22 @@ window.initTransaksiPenjualan = function (config) {
                                 <button type="button" class="btn btn-sm btn-danger btn-delete-penjualan" data-kode="${data.kode_pesanan}">
                                     Delete
                                 </button>
+                                <button type="button" class="btn btn-sm btn-success btn-upload-bukti-penjualan" data-kode="${data.kode_pesanan}">
+                                    Upload Bukti
+                                </button>
                             `;
                         }
 
-                        return `<span class="text-muted">Locked</span>`;
+                        if (statusPembayaran === 'Ditolak') {
+                            return `
+                                <button type="button" class="btn btn-sm btn-warning btn-upload-bukti-penjualan" data-kode="${data.kode_pesanan}">
+                                    Upload Ulang
+                                </button>
+                                <span class="badge badge-secondary ml-1">Locked</span>
+                            `;
+                        }
+
+                        return `<span class="badge badge-secondary">Locked</span>`;
                     }
                 }
             ]
@@ -574,20 +831,9 @@ window.initTransaksiPenjualan = function (config) {
                     };
                 });
 
-                if (response.custom) {
-                    $('#spesifikasi_tambahan').val(response.custom.spesifikasi_tambahan || '');
-                    $('#harga_estimasi').val(response.custom.harga_estimasi || '');
-                    $('#status_custom').val(response.custom.status_custom || '');
-                } else {
-                    $('#spesifikasi_tambahan').val('');
-                    $('#harga_estimasi').val('');
-                    $('#status_custom').val('');
-                }
 
                 editIndex = null;
                 clearDetailForm();
-                toggleCustomSection();
-                applyCustomRoleState();
                 applyLockByStatus(response.header.status_pesanan);
                 renderTable();
 
@@ -798,6 +1044,18 @@ window.initTransaksiPenjualan = function (config) {
             return;
         }
 
+        const barang = getBarangByKode(item.kode_barang);
+
+        isSyncingBarangSelect = true;
+
+        if (barang) {
+            $('#detail_kategori_barang_penjualan').val(barang.kode_kategori || '').trigger('change.select2');
+        }
+
+        isSyncingBarangSelect = false;
+
+        applyKategoriFilter();
+
         isSyncingBarangSelect = true;
 
         $('#detail_kode_barang_penjualan').val(item.kode_barang).trigger('change.select2');
@@ -896,7 +1154,7 @@ window.initTransaksiPenjualan = function (config) {
         const mode = $('#form_mode_penjualan').val();
         const kodeEdit = $('#edit_kode_pesanan').val();
         const kodeCustomer = $('#kode_customer').val();
-        const spesifikasiTambahan = $('#spesifikasi_tambahan').val().trim();
+
 
         if (!tglPesanan) {
             Swal.fire({
@@ -916,23 +1174,7 @@ window.initTransaksiPenjualan = function (config) {
             return;
         }
 
-        if (!jenisPemesanan) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Jenis pemesanan wajib dipilih',
-                text: 'Jenis pemesanan harus dipilih.'
-            });
-            return;
-        }
 
-        if (jenisPemesanan === 'Custom' && !spesifikasiTambahan) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Spesifikasi tambahan wajib diisi',
-                text: 'Isi spesifikasi tambahan untuk pesanan custom.'
-            });
-            return;
-        }
 
         if (!statusPesanan) {
             Swal.fire({
@@ -957,6 +1199,24 @@ window.initTransaksiPenjualan = function (config) {
                 icon: 'warning',
                 title: 'Detail masih kosong',
                 text: 'Minimal harus ada satu item detail penjualan.'
+            });
+            return;
+        }
+
+        if (!$('#metode_pembayaran').val()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Metode pembayaran belum dipilih',
+                text: 'Silakan pilih metode pembayaran terlebih dahulu.'
+            });
+            return;
+        }
+
+        if ($('#metode_pembayaran').val() === 'Transfer Bank' && !$('#bank_tujuan').val()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Bank tujuan belum dipilih',
+                text: 'Silakan pilih rekening bank tujuan.'
             });
             return;
         }
@@ -1186,17 +1446,333 @@ window.initTransaksiPenjualan = function (config) {
         }
     }
 
-    $(document).off('change', '#jenis_pengiriman').on('change', '#jenis_pengiriman', function () {
-        setOngkirByJenis();
-    });
+    // $(document).off('change', '#jenis_pengiriman').on('change', '#jenis_pengiriman', function () {
+    //     setOngkirByJenis();
+    // });
 
     $(document).off('change', '#jenis_pemesanan').on('change', '#jenis_pemesanan', function () {
         toggleCustomSection();
     });;
 
+    function formatKategoriOption(option) {
+    if (!option.id) {
+        return option.text;
+    }
+
+    return option.text;
+}
+
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function buildBarangOptionKode(barang) {
+        const disabled = parseFloat(barang.kapasitas) <= 0 ? 'disabled' : '';
+
+        return `
+            <option
+                value="${escapeHtml(barang.kode_barang)}"
+                data-kode="${escapeHtml(barang.kode_barang)}"
+                data-nama="${escapeHtml(barang.nama_barang)}"
+                data-kategori="${escapeHtml(barang.kode_kategori)}"
+                data-nama-kategori="${escapeHtml(barang.nama_kategori)}"
+                data-kapasitas="${escapeHtml(barang.kapasitas)}"
+                data-harga="${escapeHtml(barang.harga_jual)}"
+                ${disabled}
+            >
+                ${escapeHtml(barang.kode_barang)}
+            </option>
+        `;
+    }
+
+    function buildBarangOptionNama(barang) {
+        const disabled = parseFloat(barang.kapasitas) <= 0 ? 'disabled' : '';
+
+        return `
+            <option
+                value="${escapeHtml(barang.nama_barang)}"
+                data-kode="${escapeHtml(barang.kode_barang)}"
+                data-nama="${escapeHtml(barang.nama_barang)}"
+                data-kategori="${escapeHtml(barang.kode_kategori)}"
+                data-nama-kategori="${escapeHtml(barang.nama_kategori)}"
+                data-kapasitas="${escapeHtml(barang.kapasitas)}"
+                data-harga="${escapeHtml(barang.harga_jual)}"
+                ${disabled}
+            >
+                ${escapeHtml(barang.nama_barang)}
+            </option>
+        `;
+    }
+
+    function applyKategoriFilter() {
+        const selectedKategori = $('#detail_kategori_barang_penjualan').val();
+
+        const filteredBarang = barangList.filter(function (barang) {
+            if (!selectedKategori) {
+                return true;
+            }
+
+            return String(barang.kode_kategori) === String(selectedKategori);
+        });
+
+        let kodeOptions = '<option value="">Pilih Kode Barang</option>';
+        let namaOptions = '<option value="">Pilih Nama Barang</option>';
+
+        filteredBarang.forEach(function (barang) {
+            kodeOptions += buildBarangOptionKode(barang);
+            namaOptions += buildBarangOptionNama(barang);
+        });
+
+        isSyncingBarangSelect = true;
+
+        $('#detail_kode_barang_penjualan')
+            .html(kodeOptions)
+            .val('')
+            .trigger('change');
+
+        $('#detail_nama_barang_penjualan')
+            .html(namaOptions)
+            .val('')
+            .trigger('change');
+
+        $('#detail_harga_satuan_penjualan').val('');
+
+        isSyncingBarangSelect = false;
+    }
+
+    $(document).off('click', '.btn-upload-bukti-penjualan').on('click', '.btn-upload-bukti-penjualan', function () {
+        const kodePesanan = $(this).data('kode');
+
+        $('#upload_kode_pesanan').val(kodePesanan);
+        $('#upload_kode_pesanan_text').text(kodePesanan);
+        $('#bukti_pembayaran').val('');
+
+        $('#modalUploadBuktiPenjualan').modal('show');
+    });
+
+    $(document).off('submit', '#formUploadBuktiPenjualan').on('submit', '#formUploadBuktiPenjualan', function (e) {
+        e.preventDefault();
+
+        const kodePesanan = $('#upload_kode_pesanan').val();
+        const formData = new FormData(this);
+
+        $.ajax({
+            url: `${config.uploadBuktiUrlBase}/${kodePesanan}`,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function () {
+                Swal.fire({
+                    title: 'Mengunggah bukti',
+                    text: 'Mohon tunggu sebentar.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (response) {
+                $('#modalUploadBuktiPenjualan').modal('hide');
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: response.message || 'Bukti pembayaran berhasil diunggah.'
+                });
+
+                if (tablePenjualan) {
+                    tablePenjualan.ajax.reload(null, false);
+                }
+
+                if ($('#edit_kode_pesanan').val() === kodePesanan) {
+                    resetFormPenjualan();
+                }
+            },
+            error: function (xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal upload',
+                    html: getErrorMessage(xhr, 'Bukti pembayaran gagal diunggah.')
+                });
+            }
+        });
+    });
+
+    function initRajaOngkir() {
+        if ($('#rajaongkir_destination').hasClass('select2-hidden-accessible')) {
+            $('#rajaongkir_destination').select2('destroy');
+        }
+
+        $('#rajaongkir_destination').select2({
+            width: '100%',
+            placeholder: 'Ketik tujuan, contoh: Darmo Surabaya',
+            minimumInputLength: 3,
+            ajax: {
+                url: config.searchDestinationUrl,
+                type: 'GET',
+                dataType: 'json',
+                delay: 500,
+                data: function (params) {
+                    return {
+                        search: params.term
+                    };
+                },
+                processResults: function (response) {
+                    const items = response.data || [];
+
+                    return {
+                        results: items.map(function (item) {
+                            const label = item.label || [
+                                item.subdistrict_name,
+                                item.district_name,
+                                item.city_name,
+                                item.province_name,
+                                item.zip_code
+                            ].filter(Boolean).join(', ');
+
+                            return {
+                                id: item.id,
+                                text: label,
+                                raw: item
+                            };
+                        })
+                    };
+                }
+            }
+        });
+
+        $('#rajaongkir_destination')
+            .off('select2:select')
+            .on('select2:select', function (e) {
+                const item = e.params.data.raw || {};
+
+                $('#provinsi_tujuan').val(item.province_name || '');
+                $('#kota_tujuan').val(item.city_name || item.district_name || '');
+                $('#layanan_kurir').html('<option value="">Cek ongkir terlebih dahulu</option>');
+                $('#ongkir_pesanan').val(0);
+                $('#estimasi_pengiriman').val('');
+                $('#jenis_pengiriman').val('');
+
+                renderTable();
+            });
+
+        $(document).off('change', '#kurir').on('change', '#kurir', function () {
+            $('#layanan_kurir').html('<option value="">Cek ongkir terlebih dahulu</option>');
+            $('#ongkir_pesanan').val(0);
+            $('#estimasi_pengiriman').val('');
+            $('#jenis_pengiriman').val('');
+            renderTable();
+        });
+
+        $(document).off('click', '#btnCekOngkir').on('click', '#btnCekOngkir', function () {
+            const destination = $('#rajaongkir_destination').val();
+            const courier = $('#kurir').val();
+            const weight = $('#berat_pengiriman').val();
+
+            if (!destination) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Tujuan belum dipilih',
+                    text: 'Silakan pilih tujuan pengiriman terlebih dahulu.'
+                });
+                return;
+            }
+
+            if (!courier) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Kurir belum dipilih',
+                    text: 'Silakan pilih kurir terlebih dahulu.'
+                });
+                return;
+            }
+
+            $.ajax({
+                url: config.checkOngkirUrl,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken,
+                    destination: destination,
+                    courier: courier,
+                    weight: weight
+                },
+                beforeSend: function () {
+                    Swal.fire({
+                        title: 'Mengecek ongkir',
+                        text: 'Mengambil data dari RajaOngkir.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                },
+                success: function (response) {
+                    Swal.close();
+
+                    const data = response.data || [];
+                    let options = '<option value="">Pilih Layanan</option>';
+
+                    if (data.length === 0) {
+                        options = '<option value="">Layanan tidak tersedia</option>';
+                    }
+
+                    data.forEach(function (item) {
+                        const service = item.service || item.name || item.code || '-';
+                        const description = item.description || '';
+                        const cost = parseFloat(item.cost || item.price || 0);
+                        const etd = item.etd || item.estimated || '-';
+
+                        options += `
+                            <option value="${service}"
+                                data-cost="${cost}"
+                                data-etd="${etd}"
+                                data-description="${description}">
+                                ${service} - ${formatRupiah(cost)} - Estimasi ${etd}
+                            </option>
+                        `;
+                    });
+
+                    $('#layanan_kurir').html(options);
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal cek ongkir',
+                        html: getErrorMessage(xhr, 'Ongkir gagal dicek.')
+                    });
+                }
+            });
+        });
+
+        $(document).off('change', '#layanan_kurir').on('change', '#layanan_kurir', function () {
+            const selected = $(this).find(':selected');
+
+            const layanan = $(this).val() || '';
+            const cost = parseFloat(selected.data('cost')) || 0;
+            const etd = selected.data('etd') || '';
+
+            $('#jenis_pengiriman').val(layanan);
+            $('#ongkir_pesanan').val(cost);
+            $('#estimasi_pengiriman').val(etd);
+
+            renderTable();
+        });
+    }
+
+    initSelectBarang();
+    applyKategoriFilter();
+
     clearHeaderForm();
     clearDetailForm();
-    toggleCustomSection();
-    applyCustomRoleState();
+
     renderTable();
+    initPaymentMethod();
+    initRajaOngkir();
 };

@@ -59,6 +59,17 @@ Route::middleware(['auth', 'role:KRL001,KRL002'])->group(function () {
     Route::get('/ajax/transaksi/pembelian/show/{kode_pembelian}', [TransaksiController::class, 'showPembelian'])->name('ajax.transaksi.pembelian.show');
     Route::post('/ajax/transaksi/pembelian/update/{kode_pembelian}', [TransaksiController::class, 'updatePembelian'])->name('ajax.transaksi.pembelian.update');
     Route::delete('/ajax/transaksi/pembelian/delete/{kode_pembelian}', [TransaksiController::class, 'deletePembelian'])->name('ajax.transaksi.pembelian.delete');
+    Route::get('/ajax/transaksi/retur-pembelian', [TransaksiController::class, 'returPembelian'])
+        ->name('ajax.transaksi.retur.pembelian');
+    Route::post('/ajax/transaksi/retur-pembelian/store', [TransaksiController::class, 'storeReturPembelian'])
+        ->name('ajax.transaksi.retur.pembelian.store');
+
+    Route::get('/ajax/transaksi/retur-pembelian/data', [TransaksiController::class, 'listReturPembelian'])
+        ->name('ajax.transaksi.retur.pembelian.data');
+
+    Route::get('/ajax/transaksi/retur-pembelian/pembelian/{kode_pembelian}', [TransaksiController::class, 'getPembelianUntukRetur'])
+        ->name('ajax.transaksi.retur.pembelian.detail');
+        
 });
 
 // Role KRL001, KRL002, dan KRL003
@@ -69,6 +80,16 @@ Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
     Route::get('/ajax/transaksi/penjualan/show/{kode_pesanan}', [TransaksiController::class, 'showPenjualan'])->name('ajax.transaksi.penjualan.show');
     Route::post('/ajax/transaksi/penjualan/update/{kode_pesanan}', [TransaksiController::class, 'updatePenjualan'])->name('ajax.transaksi.penjualan.update');
     Route::delete('/ajax/transaksi/penjualan/delete/{kode_pesanan}', [TransaksiController::class, 'deletePenjualan'])->name('ajax.transaksi.penjualan.delete');
+    Route::post('/ajax/transaksi/penjualan/upload-bukti/{kode_pesanan}', [TransaksiController::class, 'uploadBuktiPenjualan'])
+    ->name('ajax.transaksi.penjualan.upload_bukti');
+    Route::post('/ajax/transaksi/penjualan/validasi-pembayaran/{kode_pesanan}', [TransaksiController::class, 'validasiPembayaranPenjualan'])
+    ->name('ajax.transaksi.penjualan.validasi_pembayaran');
+
+    Route::post('/ajax/transaksi/penjualan/tolak-pembayaran/{kode_pesanan}', [TransaksiController::class, 'tolakPembayaranPenjualan'])
+        ->name('ajax.transaksi.penjualan.tolak_pembayaran');
+
+    Route::post('/ajax/transaksi/penjualan/update-status/{kode_pesanan}', [TransaksiController::class, 'updateStatusPesananPenjualan'])
+        ->name('ajax.transaksi.penjualan.update_status');
 
     Route::post('/ajax/transaksi/penjualan/custom/approve/{kode_pesanan}', [TransaksiController::class, 'approveCustomPenjualan'])->name('ajax.transaksi.penjualan.custom.approve');
     Route::post('/ajax/transaksi/penjualan/custom/reject/{kode_pesanan}', [TransaksiController::class, 'rejectCustomPenjualan'])->name('ajax.transaksi.penjualan.custom.reject');
@@ -76,6 +97,24 @@ Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
     Route::get('/ajax/transaksi/riwayat-penjualan', [TransaksiController::class, 'riwayatPenjualan'])->name('ajax.transaksi.riwayat.penjualan');
 
     Route::get('/transaksi-penjualan', [TransaksiController::class, 'penjualan'])->name('transaksi.penjualan');
+
+    Route::get('/ajax/transaksi/retur-penjualan', [TransaksiController::class, 'returPenjualan'])
+        ->name('ajax.transaksi.retur.penjualan');
+
+    Route::post('/ajax/transaksi/retur-penjualan/store', [TransaksiController::class, 'storeReturPenjualan'])
+        ->name('ajax.transaksi.retur.penjualan.store');
+
+    Route::get('/ajax/transaksi/retur-penjualan/data', [TransaksiController::class, 'listReturPenjualan'])
+        ->name('ajax.transaksi.retur.penjualan.data');
+
+    Route::get('/ajax/transaksi/retur-penjualan/penjualan/{kode_pesanan}', [TransaksiController::class, 'getPenjualanUntukRetur'])
+        ->name('ajax.transaksi.retur.penjualan.detail');
+
+    Route::get('/ajax/rajaongkir/search-destination', [TransaksiController::class, 'searchRajaOngkirDestination'])
+    ->name('ajax.rajaongkir.search_destination');
+
+    Route::post('/ajax/rajaongkir/check-ongkir', [TransaksiController::class, 'checkRajaOngkir'])
+        ->name('ajax.rajaongkir.check_ongkir');
     
 });
 
