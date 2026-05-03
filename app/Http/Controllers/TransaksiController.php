@@ -1597,6 +1597,7 @@ class TransaksiController extends Controller
         try {
             DB::transaction(function () use ($request, &$kodeRetur) {
                 $kodeRetur = $this->generateKodeReturPembelianLocked();
+                $subtotalReturHeader = 0;
 
                 $pembelian = DB::table('transaksi_pembelian')
                     ->where('kode_pembelian', $request->kode_pembelian)
@@ -1618,6 +1619,7 @@ class TransaksiController extends Controller
                     'alamat'          => $request->alamat,
                     'kode_pembelian'  => $request->kode_pembelian,
                     'keterangan'      => $request->keterangan,
+                    'subtotal_retur'  => 0,
                 ]);
 
                 $detailRows = [];
@@ -1662,6 +1664,7 @@ class TransaksiController extends Controller
 
                     $hargaBarang = (float) $detailPembelian->harga_barang;
                     $subtotalRetur = $qtyRetur * $hargaBarang;
+                    $subtotalReturHeader += $subtotalRetur;
 
                     $detailRows[] = [
                         'kode_rpembelian' => $kodeRetur,
@@ -1684,6 +1687,12 @@ class TransaksiController extends Controller
                         WHERE kode_barang = NEW.kode_barang;
                     */
                 }
+
+                DB::table('retur_pembelian')
+                ->where('kode_rpembelian', $kodeRetur)
+                ->update([
+                    'subtotal_retur' => $subtotalReturHeader,
+                ]);
 
                 DB::table('retur_pembelian_detail')->insert($detailRows);
             });
@@ -1844,6 +1853,7 @@ class TransaksiController extends Controller
         try {
             DB::transaction(function () use ($request, $user, &$kodeRetur) {
                 $kodeRetur = $this->generateKodeReturPenjualanLocked();
+                $subtotalReturHeader = 0;
 
                 $penjualan = DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $request->kode_pesanan)
@@ -1881,6 +1891,7 @@ class TransaksiController extends Controller
                     'alamat'          => $request->alamat,
                     'kode_pesanan'    => $request->kode_pesanan,
                     'keterangan'      => $request->keterangan,
+                    'subtotal_retur'  => 0,
                 ]);
 
                 $detailRows = [];
@@ -1912,6 +1923,7 @@ class TransaksiController extends Controller
 
                     $hargaSatuan = (float) $detailPenjualan->harga_satuan;
                     $subtotalRetur = $qtyRetur * $hargaSatuan;
+                    $subtotalReturHeader += $subtotalRetur;
 
                     $detailRows[] = [
                         'kode_rpenjualan' => $kodeRetur,
@@ -1934,6 +1946,12 @@ class TransaksiController extends Controller
                         WHERE kode_barang = NEW.kode_barang;
                     */
                 }
+
+                DB::table('retur_penjualan')
+                ->where('kode_rpenjualan', $kodeRetur)
+                ->update([
+                    'subtotal_retur' => $subtotalReturHeader,
+                ]);
 
                 DB::table('retur_penjualan_detail')->insert($detailRows);
             });

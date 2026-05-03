@@ -642,6 +642,14 @@
             background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
             border: 1px solid var(--border-soft);
             box-shadow: var(--card-shadow);
+            cursor: pointer;
+            transition: all 0.22s ease;
+        }
+
+        .report-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--card-shadow-hover);
+            border-color: rgba(7, 94, 234, 0.28);
         }
 
         .report-card h6 {
@@ -989,6 +997,8 @@
                 font-size: 11px;
             }
 
+            
+
 
         }
     </style>
@@ -1068,6 +1078,14 @@
 
                 <div class="sidebar-submenu" id="laporanMenu">
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.stok') }}'); return false;">Laporan Stok Barang</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.penjualan') }}'); return false;">Laporan Penjualan</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.pengeluaran') }}'); return false;">Laporan Pengeluaran</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.pemasukan') }}'); return false;">Laporan Pemasukan</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.pengiriman') }}'); return false;">Laporan Pengiriman</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.presentasi.reject') }}'); return false;">Laporan Presentasi Reject</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.retur.penjualan') }}'); return false;">Laporan Retur Penjualan</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.retur.pembelian') }}'); return false;">Laporan Retur Pembelian</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.keuangan') }}'); return false;">Laporan Keuangan</a>
                 </div>
             @endif
         </div>

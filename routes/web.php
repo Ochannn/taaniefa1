@@ -119,7 +119,20 @@ Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
 });
 
 // Laporan stok
-Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
+Route::middleware(['auth', 'role:KRL001,KRL002'])->group(function () {
+    Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
+    Route::get('/ajax/laporan/penjualan', [LaporanController::class, 'penjualan'])->name('ajax.laporan.penjualan');
+    Route::get('/ajax/laporan/pengeluaran', [LaporanController::class, 'pengeluaran'])->name('ajax.laporan.pengeluaran');
+    Route::get('/ajax/laporan/pemasukan', [LaporanController::class, 'pemasukan'])->name('ajax.laporan.pemasukan');
+    Route::get('/ajax/laporan/pengiriman', [LaporanController::class, 'pengiriman'])->name('ajax.laporan.pengiriman');
+    Route::get('/ajax/laporan/presentasi-reject', [LaporanController::class, 'presentasiReject'])->name('ajax.laporan.presentasi.reject');
+    Route::get('/ajax/laporan/retur-penjualan', [LaporanController::class, 'returPenjualan'])
+        ->name('ajax.laporan.retur.penjualan');
+
+    Route::get('/ajax/laporan/retur-pembelian', [LaporanController::class, 'returPembelian'])
+        ->name('ajax.laporan.retur.pembelian');
+    Route::get('/ajax/laporan/keuangan', [LaporanController::class, 'keuangan'])->name('ajax.laporan.keuangan');
+});
 
 Route::get('/tes-db', function () {
     try {
