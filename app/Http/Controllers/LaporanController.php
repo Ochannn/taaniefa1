@@ -204,4 +204,50 @@ class LaporanController extends Controller
             'totalLabaRugi' => $totalLabaRugi,
         ]);
     }
+
+    public function pembelian(Request $request)
+    {
+        $tanggalAwal = $request->get('tanggal_awal');
+        $tanggalAkhir = $request->get('tanggal_akhir');
+
+        $query = DB::table('laporan_pembelian');
+
+        if ($tanggalAwal && $tanggalAkhir) {
+            $query->whereBetween('tanggal', [$tanggalAwal, $tanggalAkhir]);
+        }
+
+        $data = $query
+            ->orderBy('tanggal', 'desc')
+            ->orderBy('kode_pembelian', 'desc')
+            ->get();
+
+        return view('laporan.laporan_pembelian', [
+            'data' => $data,
+            'tanggalAwal' => $tanggalAwal,
+            'tanggalAkhir' => $tanggalAkhir,
+        ]);
     }
+
+    public function logAktivitas(Request $request)
+    {
+        $tanggalAwal = $request->get('tanggal_awal');
+        $tanggalAkhir = $request->get('tanggal_akhir');
+
+        $query = DB::table('log_aktivitas');
+
+        if ($tanggalAwal && $tanggalAkhir) {
+            $query->whereDate('created_at', '>=', $tanggalAwal)
+                ->whereDate('created_at', '<=', $tanggalAkhir);
+        }
+
+        $data = $query
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('laporan.log_aktivitas', [
+            'data' => $data,
+            'tanggalAwal' => $tanggalAwal,
+            'tanggalAkhir' => $tanggalAkhir,
+        ]);
+    }
+}

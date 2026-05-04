@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MasterController;
 use App\Http\Controllers\TransaksiController;
@@ -36,7 +37,27 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/ajax/dashboard', function () {
-        return view('home.dashboard');
+        $pesananPerluValidasi = DB::table('transaksi_penjualan')
+            ->where('status_pembayaran', 'Menunggu Validasi')
+            ->count();
+
+        $transaksiHariIni = DB::table('transaksi_penjualan')
+            ->whereDate('tgl_pesanan', now()->toDateString())
+            ->count();
+
+        $pengirimanDiproses = DB::table('transaksi_penjualan')
+            ->whereIn('status_pesanan', ['Diproses', 'Dikirim'])
+            ->count();
+
+        $returMasuk = DB::table('retur_penjualan')
+            ->count();
+
+        return view('home.dashboard', compact(
+            'pesananPerluValidasi',
+            'transaksiHariIni',
+            'pengirimanDiproses',
+            'returMasuk'
+        ));
     })->name('ajax.dashboard');
 
     Route::get('/ajax/customer/profile', [AuthController::class, 'customerProfile'])->name('customer.profile');
@@ -122,16 +143,18 @@ Route::middleware(['auth', 'role:KRL001,KRL002,KRL003'])->group(function () {
 Route::middleware(['auth', 'role:KRL001,KRL002'])->group(function () {
     Route::get('/ajax/laporan/stok', [LaporanController::class, 'stokBarang'])->name('ajax.laporan.stok');
     Route::get('/ajax/laporan/penjualan', [LaporanController::class, 'penjualan'])->name('ajax.laporan.penjualan');
+
+    Route::get('/ajax/laporan/pembelian', [LaporanController::class, 'pembelian'])->name('ajax.laporan.pembelian');
+
     Route::get('/ajax/laporan/pengeluaran', [LaporanController::class, 'pengeluaran'])->name('ajax.laporan.pengeluaran');
     Route::get('/ajax/laporan/pemasukan', [LaporanController::class, 'pemasukan'])->name('ajax.laporan.pemasukan');
     Route::get('/ajax/laporan/pengiriman', [LaporanController::class, 'pengiriman'])->name('ajax.laporan.pengiriman');
     Route::get('/ajax/laporan/presentasi-reject', [LaporanController::class, 'presentasiReject'])->name('ajax.laporan.presentasi.reject');
-    Route::get('/ajax/laporan/retur-penjualan', [LaporanController::class, 'returPenjualan'])
-        ->name('ajax.laporan.retur.penjualan');
-
-    Route::get('/ajax/laporan/retur-pembelian', [LaporanController::class, 'returPembelian'])
-        ->name('ajax.laporan.retur.pembelian');
+    Route::get('/ajax/laporan/retur-penjualan', [LaporanController::class, 'returPenjualan'])->name('ajax.laporan.retur.penjualan');
+    Route::get('/ajax/laporan/retur-pembelian', [LaporanController::class, 'returPembelian'])->name('ajax.laporan.retur.pembelian');
     Route::get('/ajax/laporan/keuangan', [LaporanController::class, 'keuangan'])->name('ajax.laporan.keuangan');
+    Route::get('/ajax/laporan/log-aktivitas', [LaporanController::class, 'logAktivitas'])
+    ->name('ajax.laporan.log.aktivitas');
 });
 
 Route::get('/tes-db', function () {
@@ -141,4 +164,10 @@ Route::get('/tes-db', function () {
     } catch (\Exception $e) {
         return 'Database gagal terhubung: ' . $e->getMessage();
     }
+});
+
+Route::get('/tes-count-validasi', function () {
+    return DB::table('transaksi_penjualan')
+        ->where('status_pembayaran', 'Menunggu Validasi')
+        ->count();
 });

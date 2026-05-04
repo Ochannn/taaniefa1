@@ -191,6 +191,13 @@
             'tone' => 'blue'
         ],
         [
+            'title' => 'Laporan Pembelian',
+            'desc' => 'Rekap pembelian barang dari supplier.',
+            'icon' => 'fas fa-cart-plus',
+            'route' => route('ajax.laporan.pembelian'),
+            'tone' => 'green'
+        ],
+        [
             'title' => 'Laporan Keuangan',
             'desc' => 'Ringkasan pemasukan, pengeluaran, dan saldo.',
             'icon' => 'fas fa-balance-scale',
@@ -216,6 +223,13 @@
             'desc' => 'Rekap pengembalian barang ke supplier.',
             'icon' => 'fas fa-exchange-alt',
             'route' => route('ajax.laporan.retur.pembelian'),
+            'tone' => 'purple'
+        ],
+        [
+            'title' => 'Log Aktivitas',
+            'desc' => 'Melihat riwayat aktivitas pengguna dalam sistem.',
+            'icon' => 'fas fa-history',
+            'route' => route('ajax.laporan.log.aktivitas'),
             'tone' => 'purple'
         ],
     ];

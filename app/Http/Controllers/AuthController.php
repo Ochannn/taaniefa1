@@ -87,7 +87,27 @@ class AuthController extends Controller
 
     public function home()
     {
-        return view('home.index');
+        $pesananPerluValidasi = \Illuminate\Support\Facades\DB::table('transaksi_penjualan')
+            ->where('status_pembayaran', 'Menunggu Validasi')
+            ->count();
+
+        $transaksiHariIni = \Illuminate\Support\Facades\DB::table('transaksi_penjualan')
+            ->whereDate('tgl_pesanan', now()->toDateString())
+            ->count();
+
+        $pengirimanDiproses = \Illuminate\Support\Facades\DB::table('transaksi_penjualan')
+            ->whereIn('status_pesanan', ['Diproses', 'Dikirim'])
+            ->count();
+
+        $returMasuk = \Illuminate\Support\Facades\DB::table('retur_penjualan')
+            ->count();
+
+        return view('home.index', compact(
+            'pesananPerluValidasi',
+            'transaksiHariIni',
+            'pengirimanDiproses',
+            'returMasuk'
+        ));
     }
 
     public function logout(Request $request)
@@ -182,4 +202,6 @@ class AuthController extends Controller
 
         return 'KCS' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
     }
+
+    
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\LogAktivitasHelper;
 
 class MasterController extends Controller
 {
@@ -433,6 +434,15 @@ class MasterController extends Controller
 
         DB::table($config['table'])->insert($data);
 
+        LogAktivitasHelper::simpan(
+            $newKode,
+            $config['table'],
+            'INSERT',
+            null,
+            null,
+            $data
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Data berhasil disimpan.'
@@ -455,9 +465,26 @@ class MasterController extends Controller
             $data[$field] = $request->$field;
         }
 
+        $oldData = DB::table($config['table'])
+            ->where($config['primaryKey'], $id)
+            ->first();
+
         DB::table($config['table'])
             ->where($config['primaryKey'], $id)
             ->update($data);
+
+        $newData = DB::table($config['table'])
+            ->where($config['primaryKey'], $id)
+            ->first();
+
+        LogAktivitasHelper::simpan(
+            $id,
+            $config['table'],
+            'UPDATE',
+            $oldData,
+            $data,
+            $newData
+        );
 
         return response()->json([
             'success' => true,
@@ -469,9 +496,22 @@ class MasterController extends Controller
     {
         $config = $this->getConfig($module);
 
+        $oldData = DB::table($config['table'])
+            ->where($config['primaryKey'], $id)
+            ->first();
+
         DB::table($config['table'])
             ->where($config['primaryKey'], $id)
             ->delete();
+
+        LogAktivitasHelper::simpan(
+            $id,
+            $config['table'],
+            'DELETE',
+            $oldData,
+            null,
+            null
+        );
 
         return response()->json([
             'success' => true,

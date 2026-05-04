@@ -1079,6 +1079,7 @@
                 <div class="sidebar-submenu" id="laporanMenu">
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.stok') }}'); return false;">Laporan Stok Barang</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.penjualan') }}'); return false;">Laporan Penjualan</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.pembelian') }}'); return false;">Laporan Pembelian</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.pengeluaran') }}'); return false;">Laporan Pengeluaran</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.pemasukan') }}'); return false;">Laporan Pemasukan</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.pengiriman') }}'); return false;">Laporan Pengiriman</a>
@@ -1086,6 +1087,7 @@
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.retur.penjualan') }}'); return false;">Laporan Retur Penjualan</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.retur.pembelian') }}'); return false;">Laporan Retur Pembelian</a>
                     <a href="#" onclick="loadContent('{{ route('ajax.laporan.keuangan') }}'); return false;">Laporan Keuangan</a>
+                    <a href="#" onclick="loadContent('{{ route('ajax.laporan.log.aktivitas') }}'); return false;">Log Aktivitas</a>
                 </div>
             @endif
         </div>

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use App\Helpers\LogAktivitasHelper;
 
 class TransaksiController extends Controller
 {
@@ -135,14 +136,28 @@ class TransaksiController extends Controller
                     ];
                 }
 
-                DB::table('transaksi_pembelian')->insert([
+                $dataPembelian = [
                     'kode_pembelian'    => $kodePembelian,
                     'tgl_pembelian'     => $request->tgl_pembelian,
                     'kode_supplier'     => $request->kode_supplier,
                     'kode_user'         => $user->kode_user,
                     'total_pembelian'   => $totalPembelian,
                     'catatan_pembelian' => $request->catatan_pembelian,
-                ]);
+                ];
+
+                DB::table('transaksi_pembelian')->insert($dataPembelian);
+
+                LogAktivitasHelper::simpan(
+                    $kodePembelian,
+                    'transaksi_pembelian',
+                    'INSERT',
+                    null,
+                    null,
+                    [
+                        'header' => $dataPembelian,
+                        'detail' => $detailRows
+                    ]
+                );
 
                 DB::table('transaksi_pembelian_detail')->insert($detailRows);
 
@@ -361,6 +376,35 @@ class TransaksiController extends Controller
 
                 DB::table('transaksi_pembelian_detail')->insert($detailRows);
 
+                $newHeader = DB::table('transaksi_pembelian')
+                    ->where('kode_pembelian', $kode_pembelian)
+                    ->first();
+
+                $newDetails = DB::table('transaksi_pembelian_detail')
+                    ->where('kode_pembelian', $kode_pembelian)
+                    ->get();
+
+                LogAktivitasHelper::simpan(
+                    $kode_pembelian,
+                    'transaksi_pembelian',
+                    'UPDATE',
+                    [
+                        'header' => $header,
+                        'detail' => $oldDetails
+                    ],
+                    [
+                        'tgl_pembelian'     => $request->tgl_pembelian,
+                        'kode_supplier'     => $request->kode_supplier,
+                        'total_pembelian'   => $totalPembelian,
+                        'catatan_pembelian' => $request->catatan_pembelian,
+                        'detail'            => $detailRows
+                    ],
+                    [
+                        'header' => $newHeader,
+                        'detail' => $newDetails
+                    ]
+                );
+
                 foreach ($request->items as $item) {
                     DB::table('master_barang')
                         ->where('kode_barang', $item['kode_barang'])
@@ -434,6 +478,18 @@ class TransaksiController extends Controller
                 DB::table('transaksi_pembelian')
                     ->where('kode_pembelian', $kode_pembelian)
                     ->delete();
+
+                LogAktivitasHelper::simpan(
+                    $kode_pembelian,
+                    'transaksi_pembelian',
+                    'DELETE',
+                    [
+                        'header' => $header,
+                        'detail' => $oldDetails
+                    ],
+                    null,
+                    null
+                );
             });
 
             return response()->json([
@@ -534,17 +590,17 @@ class TransaksiController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, $kode_pesanan, &$path) {
+            DB::transaction(function () use ($request, $kode_pesanan, $header, &$path) {
                 $path = $request->file('bukti_pembayaran')
                     ->store('bukti-pembayaran', 'public');
 
                 DB::table('pembayaran_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
                     ->update([
-                        'bukti_pembayaran' => $path,
-                        'status_pembayaran' => 'Menunggu Validasi',
-                        'tanggal_upload_bukti' => now(),
-                        'updated_at' => now(),
+                        'bukti_pembayaran'      => $path,
+                        'status_pembayaran'     => 'Menunggu Validasi',
+                        'tanggal_upload_bukti'  => now(),
+                        'updated_at'            => now(),
                     ]);
 
                 DB::table('transaksi_penjualan')
@@ -552,6 +608,22 @@ class TransaksiController extends Controller
                     ->update([
                         'status_pembayaran' => 'Menunggu Validasi',
                     ]);
+
+                $newHeader = DB::table('transaksi_penjualan')
+                    ->where('kode_pesanan', $kode_pesanan)
+                    ->first();
+
+                LogAktivitasHelper::simpan(
+                    $kode_pesanan,
+                    'transaksi_penjualan',
+                    'UPDATE',
+                    $header,
+                    [
+                        'status_pembayaran' => 'Menunggu Validasi',
+                        'bukti_pembayaran'  => $path
+                    ],
+                    $newHeader
+                );
             });
 
             return response()->json([
@@ -596,7 +668,7 @@ class TransaksiController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($kode_pesanan, $user) {
+        DB::transaction(function () use ($kode_pesanan, $user, $transaksi) {
             DB::table('pembayaran_penjualan')
                 ->where('kode_pesanan', $kode_pesanan)
                 ->update([
@@ -613,6 +685,21 @@ class TransaksiController extends Controller
                     'status_pembayaran' => 'Lunas',
                     'status_pesanan' => 'Diproses',
                 ]);
+            $newTransaksi = DB::table('transaksi_penjualan')
+                ->where('kode_pesanan', $kode_pesanan)
+                ->first();
+
+            LogAktivitasHelper::simpan(
+                $kode_pesanan,
+                'transaksi_penjualan',
+                'UPDATE',
+                $transaksi,
+                [
+                    'status_pembayaran' => 'Lunas',
+                    'status_pesanan' => 'Diproses'
+                ],
+                $newTransaksi
+            );
         });
 
         return response()->json([
@@ -654,7 +741,7 @@ class TransaksiController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($request, $kode_pesanan, $user) {
+        DB::transaction(function () use ($request, $kode_pesanan, $user, $transaksi) {
             DB::table('pembayaran_penjualan')
                 ->where('kode_pesanan', $kode_pesanan)
                 ->update([
@@ -670,6 +757,21 @@ class TransaksiController extends Controller
                 ->update([
                     'status_pembayaran' => 'Ditolak',
                 ]);
+            $newTransaksi = DB::table('transaksi_penjualan')
+                ->where('kode_pesanan', $kode_pesanan)
+                ->first();
+
+            LogAktivitasHelper::simpan(
+                $kode_pesanan,
+                'transaksi_penjualan',
+                'UPDATE',
+                $transaksi,
+                [
+                    'status_pembayaran' => 'Ditolak',
+                    'catatan_validasi' => $request->catatan_validasi
+                ],
+                $newTransaksi
+            );
         });
 
         return response()->json([
@@ -716,6 +818,21 @@ class TransaksiController extends Controller
             ->update([
                 'status_pesanan' => $request->status_pesanan,
             ]);
+
+        $newTransaksi = DB::table('transaksi_penjualan')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->first();
+
+        LogAktivitasHelper::simpan(
+            $kode_pesanan,
+            'transaksi_penjualan',
+            'UPDATE',
+            $transaksi,
+            [
+                'status_pesanan' => $request->status_pesanan
+            ],
+            $newTransaksi
+        );
 
         return response()->json([
             'success' => true,
@@ -816,12 +933,12 @@ class TransaksiController extends Controller
 
         $rules = [
             'tgl_pesanan'          => 'required|date',
-            'jenis_pengiriman' => 'required|string|max:50',
-            'provinsi_tujuan' => 'nullable|string|max:100',
-            'kota_tujuan' => 'nullable|string|max:100',
-            'kurir' => 'required|string|max:50',
-            'layanan_kurir' => 'required|string|max:100',
-            'estimasi_pengiriman' => 'nullable|string|max:50',
+            'jenis_pengiriman'     => 'required|string|max:50',
+            'provinsi_tujuan'      => 'nullable|string|max:100',
+            'kota_tujuan'          => 'nullable|string|max:100',
+            'kurir'                => 'required|string|max:50',
+            'layanan_kurir'        => 'required|string|max:100',
+            'estimasi_pengiriman'  => 'nullable|string|max:50',
             'jenis_pemesanan'      => 'nullable|string|in:Standart,Custom',
             'alamat_kirim_pesanan' => 'nullable|string',
             'ongkir_pesanan'       => 'required|numeric|min:0',
@@ -830,8 +947,8 @@ class TransaksiController extends Controller
             'items.*.kode_barang'  => 'required|string',
             'items.*.nama_barang'  => 'required|string',
             'items.*.qty'          => 'required|numeric|min:1',
-            'metode_pembayaran' => 'required|string|in:Transfer Bank,QRIS,Cash',
-            'bank_tujuan' => 'nullable|string|max:50',
+            'metode_pembayaran'    => 'required|string|in:Transfer Bank,QRIS,Cash',
+            'bank_tujuan'          => 'nullable|string|max:50',
         ];
 
         if ($this->isAdminRole($user->kode_role)) {
@@ -840,7 +957,6 @@ class TransaksiController extends Controller
         }
 
         $request->validate($rules);
-
 
         $jenisPemesanan = $request->jenis_pemesanan ?: 'Standart';
 
@@ -939,7 +1055,7 @@ class TransaksiController extends Controller
 
                 $grandTotal = $totalDetail + (float) $request->ongkir_pesanan;
 
-                DB::table('transaksi_penjualan')->insert([
+                $dataPenjualan = [
                     'kode_pesanan'         => $kodePesanan,
                     'tgl_pesanan'          => $request->tgl_pesanan,
                     'kode_customer'        => $kodeCustomer,
@@ -955,25 +1071,38 @@ class TransaksiController extends Controller
                     'total_detail_pesanan' => $totalDetail,
                     'grand_total_pesanan'  => $grandTotal,
                     'status_pembayaran'    => 'Belum Dibayar',
-                    'provinsi_tujuan' => $request->provinsi_tujuan,
-                    'kota_tujuan' => $request->kota_tujuan,
-                    'kurir' => $request->kurir,
-                    'layanan_kurir' => $request->layanan_kurir,
-                    'estimasi_pengiriman' => $request->estimasi_pengiriman,
-                ]);
+                    'provinsi_tujuan'      => $request->provinsi_tujuan,
+                    'kota_tujuan'          => $request->kota_tujuan,
+                    'kurir'                => $request->kurir,
+                    'layanan_kurir'        => $request->layanan_kurir,
+                    'estimasi_pengiriman'  => $request->estimasi_pengiriman,
+                ];
+
+                DB::table('transaksi_penjualan')->insert($dataPenjualan);
 
                 DB::table('pembayaran_penjualan')->insert([
-                    'kode_pembayaran' => $this->generateKodePembayaran(),
-                    'kode_pesanan' => $kodePesanan,
-                    'metode_pembayaran' => $request->metode_pembayaran,
-                    'bank_tujuan' => $request->bank_tujuan,
-                    'nominal_pembayaran' => $grandTotal,
-                    'status_pembayaran' => 'Belum Dibayar',
-                    'created_at' => now(),
+                    'kode_pembayaran'     => $this->generateKodePembayaran(),
+                    'kode_pesanan'        => $kodePesanan,
+                    'metode_pembayaran'   => $request->metode_pembayaran,
+                    'bank_tujuan'         => $request->bank_tujuan,
+                    'nominal_pembayaran'  => $grandTotal,
+                    'status_pembayaran'   => 'Belum Dibayar',
+                    'created_at'          => now(),
                 ]);
 
                 DB::table('transaksi_penjualan_detail')->insert($detailRows);
 
+                LogAktivitasHelper::simpan(
+                    $kodePesanan,
+                    'transaksi_penjualan',
+                    'INSERT',
+                    null,
+                    null,
+                    [
+                        'header' => $dataPenjualan,
+                        'detail' => $detailRows
+                    ]
+                );
             });
 
             return response()->json([
@@ -1266,6 +1395,46 @@ class TransaksiController extends Controller
 
                 DB::table('transaksi_penjualan_detail')->insert($detailRows);
 
+                $newHeader = DB::table('transaksi_penjualan')
+                    ->where('kode_pesanan', $kode_pesanan)
+                    ->first();
+
+                $newDetails = DB::table('transaksi_penjualan_detail')
+                    ->where('kode_pesanan', $kode_pesanan)
+                    ->get();
+
+                LogAktivitasHelper::simpan(
+                    $kode_pesanan,
+                    'transaksi_penjualan',
+                    'UPDATE',
+                    [
+                        'header' => $header,
+                        'detail' => $oldDetails
+                    ],
+                    [
+                        'tgl_pesanan'          => $request->tgl_pesanan,
+                        'kode_customer'        => $kodeCustomer,
+                        'jenis_pengiriman'     => $request->jenis_pengiriman,
+                        'jenis_pemesanan'      => $jenisPemesanan,
+                        'status_pesanan'       => $statusPesanan,
+                        'alamat_kirim_pesanan' => $request->alamat_kirim_pesanan,
+                        'ongkir_pesanan'       => (float) $request->ongkir_pesanan,
+                        'catatan_pesanan'      => $request->catatan_pesanan,
+                        'total_detail_pesanan' => $totalDetail,
+                        'grand_total_pesanan'  => $grandTotal,
+                        'provinsi_tujuan'      => $request->provinsi_tujuan,
+                        'kota_tujuan'          => $request->kota_tujuan,
+                        'kurir'                => $request->kurir,
+                        'layanan_kurir'        => $request->layanan_kurir,
+                        'estimasi_pengiriman'  => $request->estimasi_pengiriman,
+                        'detail'               => $detailRows
+                    ],
+                    [
+                        'header' => $newHeader,
+                        'detail' => $newDetails
+                    ]
+                );
+
             });
 
             return response()->json([
@@ -1345,6 +1514,18 @@ class TransaksiController extends Controller
                 DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
                     ->delete();
+
+                LogAktivitasHelper::simpan(
+                    $kode_pesanan,
+                    'transaksi_penjualan',
+                    'DELETE',
+                    [
+                        'header' => $header,
+                        'detail' => $oldDetails
+                    ],
+                    null,
+                    null
+                );
             });
 
             return response()->json([
