@@ -760,6 +760,168 @@
             transform: rotate(180deg);
         }
 
+                    .notification-wrap {
+                position: relative;
+            }
+
+            .notification-btn {
+                width: 42px;
+                height: 42px;
+                border: 1px solid var(--border-soft);
+                background: #ffffff;
+                border-radius: 14px;
+                color: var(--primary-blue);
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .notification-btn:hover {
+                background: var(--primary-blue-soft);
+                border-color: #d9e7ff;
+            }
+
+            .notification-badge {
+                position: absolute;
+                top: -5px;
+                right: -4px;
+                min-width: 18px;
+                height: 18px;
+                padding: 0 5px;
+                border-radius: 999px;
+                background: #ef4444;
+                color: #ffffff;
+                font-size: 10px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 2px solid #ffffff;
+                line-height: 1;
+            }
+
+            .notification-menu {
+                position: absolute;
+                top: calc(100% + 12px);
+                right: 0;
+                width: 380px;
+                max-height: 430px;
+                background: #ffffff;
+                border: 1px solid var(--border-soft);
+                border-radius: 18px;
+                box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+                display: none;
+                overflow: hidden;
+                z-index: 1200;
+            }
+
+            .notification-menu.show {
+                display: block;
+            }
+
+            .notification-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 14px 16px;
+                border-bottom: 1px solid var(--border-soft);
+                background: #f8fbff;
+            }
+
+            .notification-header h6 {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 800;
+                color: var(--text-dark);
+            }
+
+            .notification-read-all {
+                border: 0;
+                background: transparent;
+                color: var(--primary-blue);
+                font-size: 12px;
+                font-weight: 700;
+                cursor: pointer;
+                padding: 0;
+            }
+
+            .notification-list {
+                max-height: 360px;
+                overflow-y: auto;
+            }
+
+            .notification-item {
+                width: 100%;
+                border: 0;
+                background: #ffffff;
+                text-align: left;
+                padding: 14px 16px;
+                cursor: pointer;
+                display: block;
+                border-bottom: 1px solid #eef2f7;
+                transition: all 0.2s ease;
+            }
+
+            .notification-item:hover {
+                background: #f8fbff;
+            }
+
+            .notification-item.unread {
+                background: #eef6ff;
+            }
+
+            .notification-item.unread:hover {
+                background: #e6f0ff;
+            }
+
+            .notification-item-top {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 6px;
+            }
+
+            .notification-item-title {
+                margin: 0;
+                font-size: 13px;
+                font-weight: 800;
+                color: var(--text-dark);
+                line-height: 1.4;
+            }
+
+            .notification-dot {
+                width: 8px;
+                height: 8px;
+                min-width: 8px;
+                border-radius: 50%;
+                background: #2563eb;
+                margin-top: 5px;
+            }
+
+            .notification-item-message {
+                margin: 0 0 6px;
+                font-size: 12.5px;
+                color: #475569;
+                line-height: 1.5;
+            }
+
+            .notification-item-time {
+                font-size: 11px;
+                color: #94a3b8;
+            }
+
+            .notification-empty {
+                padding: 20px 16px;
+                text-align: center;
+                font-size: 13px;
+                color: var(--text-muted);
+            }
+
         @media (max-width: 1199px) {
             .app-shell {
                 grid-template-columns: 92px minmax(0, 1fr);
@@ -947,6 +1109,15 @@
                 height: 170px;
             }
 
+
+
+            @media (max-width: 767px) {
+                .notification-menu {
+                    width: 320px;
+                    right: -70px;
+                }
+            }
+
             @media (max-width: 767px) {
                 .master-page {
                     padding: 18px 16px;
@@ -1115,10 +1286,25 @@
             </div>
 
             <div class="topbar-actions">
-                <button type="button" class="notification-btn">
-                    <i class="fas fa-bell"></i>
-                    <span class="notification-badge">3</span>
-                </button>
+                <div class="notification-dropdown">
+                    <button type="button" class="notification-btn" id="notificationToggle">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                    </button>
+
+                    <div class="notification-menu" id="notificationMenu">
+                        <div class="notification-header">
+                            <h6>Notifikasi</h6>
+                            <button type="button" class="notification-read-all" id="markAllReadBtn">
+                                Tandai semua dibaca
+                            </button>
+                        </div>
+
+                        <div class="notification-list" id="notificationList">
+                            <div class="notification-empty">Tidak ada notifikasi.</div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="profile-dropdown">
                     <div class="profile-pill" id="profileToggle">

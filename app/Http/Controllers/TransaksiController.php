@@ -7,9 +7,57 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use App\Helpers\LogAktivitasHelper;
+use App\Http\Controllers\NotifikasiController;
 
 class TransaksiController extends Controller
 {
+
+    private function getKodeUserCustomerByKodeCustomer($kodeCustomer)
+    {
+        return DB::table('master_customer')
+            ->where('kode_customer', $kodeCustomer)
+            ->value('kode_user');
+    }
+
+    private function getKodeUserCustomerByKodePesanan($kodePesanan)
+    {
+        return DB::table('transaksi_penjualan as tp')
+            ->leftJoin('master_customer as mc', 'tp.kode_customer', '=', 'mc.kode_customer')
+            ->where('tp.kode_pesanan', $kodePesanan)
+            ->value('mc.kode_user');
+    }
+
+    private function kirimNotifikasiAdmin($tipe, $judul, $pesan, $refTable, $refKode)
+    {
+        foreach (['KRL001', 'KRL002'] as $role) {
+            NotifikasiController::buat([
+                'target_role' => $role,
+                'tipe' => $tipe,
+                'judul' => $judul,
+                'pesan' => $pesan,
+                'url' => route('ajax.transaksi.riwayat.penjualan'),
+                'ref_table' => $refTable,
+                'ref_kode' => $refKode,
+            ]);
+        }
+    }
+
+    private function kirimNotifikasiCustomer($kodeUser, $tipe, $judul, $pesan, $refTable, $refKode)
+    {
+        if (!$kodeUser) {
+            return;
+        }
+
+        NotifikasiController::buat([
+            'kode_user' => $kodeUser,
+            'tipe' => $tipe,
+            'judul' => $judul,
+            'pesan' => $pesan,
+            'url' => route('ajax.transaksi.riwayat.penjualan'),
+            'ref_table' => $refTable,
+            'ref_kode' => $refKode,
+        ]);
+    }
 
     public function riwayatPenjualan()
     {
@@ -167,6 +215,14 @@ class TransaksiController extends Controller
                         ->increment('kapasitas', (float) $item['qty']);
                 }
             });
+
+            $this->kirimNotifikasiAdmin(
+                'pembelian_baru',
+                'Pembelian Baru',
+                'Kode pembelian ' . $kodePembelian . ' perlu divalidasi.',
+                'transaksi_pembelian',
+                $kodePembelian
+            );
 
             return response()->json([
                 'success' => true,
@@ -626,6 +682,25 @@ class TransaksiController extends Controller
                 );
             });
 
+            $kodeUserCustomer = $this->getKodeUserCustomerByKodePesanan($kode_pesanan);
+
+            $this->kirimNotifikasiCustomer(
+                $kodeUserCustomer,
+                'menunggu_validasi',
+                'Menunggu Validasi Admin',
+                'Bukti pembayaran pesanan ' . $kode_pesanan . ' berhasil diunggah dan sedang menunggu validasi admin.',
+                'transaksi_penjualan',
+                $kode_pesanan
+            );
+
+            $this->kirimNotifikasiAdmin(
+                'validasi_pembayaran',
+                'Validasi Pembayaran',
+                'Pesanan ' . $kode_pesanan . ' perlu divalidasi.',
+                'transaksi_penjualan',
+                $kode_pesanan
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Bukti pembayaran berhasil diunggah dan menunggu validasi admin.',
@@ -702,6 +777,17 @@ class TransaksiController extends Controller
             );
         });
 
+        $kodeUserCustomer = $this->getKodeUserCustomerByKodePesanan($kode_pesanan);
+
+        $this->kirimNotifikasiCustomer(
+            $kodeUserCustomer,
+            'pembayaran_divalidasi',
+            'Pembayaran Divalidasi',
+            'Pembayaran pesanan ' . $kode_pesanan . ' telah divalidasi. Pesanan sedang diproses.',
+            'transaksi_penjualan',
+            $kode_pesanan
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Pembayaran berhasil divalidasi. Status pesanan berubah menjadi Diproses.'
@@ -774,6 +860,23 @@ class TransaksiController extends Controller
             );
         });
 
+        $kodeUserCustomer = $this->getKodeUserCustomerByKodePesanan($kode_pesanan);
+
+        $pesan = 'Pembayaran pesanan ' . $kode_pesanan . ' ditolak. Silakan upload ulang bukti pembayaran.';
+
+        if ($request->catatan_validasi) {
+            $pesan .= ' Catatan: ' . $request->catatan_validasi;
+        }
+
+        $this->kirimNotifikasiCustomer(
+            $kodeUserCustomer,
+            'pembayaran_ditolak',
+            'Pembayaran Ditolak',
+            $pesan,
+            'transaksi_penjualan',
+            $kode_pesanan
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Pembayaran ditolak. Customer dapat mengunggah ulang bukti pembayaran.'
@@ -832,6 +935,40 @@ class TransaksiController extends Controller
                 'status_pesanan' => $request->status_pesanan
             ],
             $newTransaksi
+        );
+
+        $kodeUserCustomer = $this->getKodeUserCustomerByKodePesanan($kode_pesanan);
+
+        $judul = 'Status Pesanan Diperbarui';
+        $pesan = 'Status pesanan ' . $kode_pesanan . ' diperbarui menjadi ' . $request->status_pesanan . '.';
+
+        if ($request->status_pesanan === 'Diproses') {
+            $judul = 'Pesanan Diproses';
+            $pesan = 'Pesanan ' . $kode_pesanan . ' sedang diproses.';
+        }
+
+        if ($request->status_pesanan === 'Dikirim') {
+            $judul = 'Pesanan Dikirim';
+            $pesan = 'Pesanan ' . $kode_pesanan . ' sedang dikirim.';
+        }
+
+        if ($request->status_pesanan === 'Selesai') {
+            $judul = 'Pesanan Selesai';
+            $pesan = 'Pesanan ' . $kode_pesanan . ' telah selesai.';
+        }
+
+        if ($request->status_pesanan === 'Batal') {
+            $judul = 'Pesanan Dibatalkan';
+            $pesan = 'Pesanan ' . $kode_pesanan . ' telah dibatalkan.';
+        }
+
+        $this->kirimNotifikasiCustomer(
+            $kodeUserCustomer,
+            'status_pesanan',
+            $judul,
+            $pesan,
+            'transaksi_penjualan',
+            $kode_pesanan
         );
 
         return response()->json([
@@ -1104,6 +1241,27 @@ class TransaksiController extends Controller
                     ]
                 );
             });
+
+            $kodeUserCustomer = $this->getKodeUserCustomerByKodeCustomer($kodeCustomer);
+
+            if ($request->metode_pembayaran !== 'Cash') {
+                $this->kirimNotifikasiCustomer(
+                    $kodeUserCustomer,
+                    'upload_bukti_pembayaran',
+                    'Upload Bukti Pembayaran',
+                    'Pesanan ' . $kodePesanan . ' berhasil dibuat. Silakan upload bukti pembayaran.',
+                    'transaksi_penjualan',
+                    $kodePesanan
+                );
+            }
+
+            $this->kirimNotifikasiAdmin(
+                'pesanan_baru',
+                'Pesanan Baru',
+                'Pesanan ' . $kodePesanan . ' telah dibuat.',
+                'transaksi_penjualan',
+                $kodePesanan
+            );
 
             return response()->json([
                 'success'              => true,
