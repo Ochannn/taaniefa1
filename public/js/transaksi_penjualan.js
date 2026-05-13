@@ -277,8 +277,6 @@ window.initTransaksiPenjualan = function (config) {
 
     function initPaymentMethod() {
         $(document).off('change', '#metode_pembayaran').on('change', '#metode_pembayaran', function () {
-            const metode = $(this).val();
-
             $('#wrap_bank_tujuan').hide();
             $('#info_transfer_bank').hide();
             $('#info_qris').hide();
@@ -288,19 +286,9 @@ window.initTransaksiPenjualan = function (config) {
             $('#info_bank').text('-');
             $('#info_rekening').text('-');
             $('#info_atas_nama').text('-');
-
-            if (metode === 'Transfer Bank') {
-                $('#wrap_bank_tujuan').show();
-            }
-
-            if (metode === 'QRIS') {
-                $('#info_qris').show();
-            }
-
-            if (metode === 'Cash') {
-                $('#info_cash').show();
-            }
         });
+
+    
 
         $(document).off('change', '#bank_tujuan').on('change', '#bank_tujuan', function () {
             const selected = $(this).find(':selected');
@@ -761,25 +749,29 @@ window.initTransaksiPenjualan = function (config) {
                         }
 
                         if (statusPesanan === 'Pending' && statusPembayaran === 'Belum Dibayar') {
-                            return `
+                            let html = `
                                 <button type="button" class="btn btn-sm btn-primary btn-edit-penjualan" data-kode="${data.kode_pesanan}">
                                     Edit
                                 </button>
                                 <button type="button" class="btn btn-sm btn-danger btn-delete-penjualan" data-kode="${data.kode_pesanan}">
                                     Delete
                                 </button>
-                                <button type="button" class="btn btn-sm btn-success btn-upload-bukti-penjualan" data-kode="${data.kode_pesanan}">
-                                    Upload Bukti
-                                </button>
                             `;
+
+                            if (data.metode_pembayaran === 'Midtrans') {
+                                html += `
+                                    <button type="button" class="btn btn-sm btn-success btn-bayar-midtrans" data-kode="${data.kode_pesanan}">
+                                        Bayar
+                                    </button>
+                                `;
+                            }
+
+                            return html;
                         }
 
                         if (statusPembayaran === 'Ditolak') {
                             return `
-                                <button type="button" class="btn btn-sm btn-warning btn-upload-bukti-penjualan" data-kode="${data.kode_pesanan}">
-                                    Upload Ulang
-                                </button>
-                                <span class="badge badge-secondary ml-1">Locked</span>
+                                <span class="badge badge-danger">Pembayaran Ditolak</span>
                             `;
                         }
 
@@ -1212,14 +1204,6 @@ window.initTransaksiPenjualan = function (config) {
             return;
         }
 
-        if ($('#metode_pembayaran').val() === 'Transfer Bank' && !$('#bank_tujuan').val()) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Bank tujuan belum dipilih',
-                text: 'Silakan pilih rekening bank tujuan.'
-            });
-            return;
-        }
 
         const url = mode === 'edit'
             ? `${config.updateUrlBase}/${kodeEdit}`
@@ -1242,12 +1226,17 @@ window.initTransaksiPenjualan = function (config) {
                 });
             },
             success: function (response) {
+                Swal.close();
+
+                if (mode === 'create' && response.kode_pesanan) {
+                    openMidtransPayment(response.kode_pesanan);
+                    return;
+                }
+
                 Swal.fire({
                     icon: 'success',
-                    title: mode === 'edit' ? 'Update berhasil' : 'Penjualan berhasil',
-                    html: mode === 'edit'
-                        ? `<div>Data transaksi berhasil diperbarui.</div><div class="mt-2"><strong>Kode Pesanan: ${response.kode_pesanan || kodeEdit}</strong></div>`
-                        : `<div>Data telah tersimpan.</div><div class="mt-2"><strong>Kode Pesanan: ${response.kode_pesanan}</strong></div>`,
+                    title: 'Update berhasil',
+                    html: `<div>Data transaksi berhasil diperbarui.</div><div class="mt-2"><strong>Kode Pesanan: ${response.kode_pesanan || kodeEdit}</strong></div>`,
                     confirmButtonText: 'OK'
                 }).then(() => {
                     resetFormPenjualan();
@@ -1260,8 +1249,8 @@ window.initTransaksiPenjualan = function (config) {
             error: function (xhr) {
                 Swal.fire({
                     icon: 'error',
-                    title: mode === 'edit' ? 'Gagal mengupdate' : 'Gagal menyimpan',
-                    html: getErrorMessage(xhr, 'Terjadi kesalahan saat memproses data.')
+                    title: mode === 'edit' ? 'Gagal update transaksi' : 'Gagal menyimpan transaksi',
+                    html: getErrorMessage(xhr, 'Transaksi gagal diproses.')
                 });
             }
         });
@@ -1764,7 +1753,186 @@ window.initTransaksiPenjualan = function (config) {
 
             renderTable();
         });
+
+
+
+
     }
+
+    function openMidtransPayment(kodePesanan) {
+        if (!kodePesanan) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Kode pesanan tidak ditemukan',
+                text: 'Kode pesanan tidak tersedia untuk proses pembayaran.'
+            });
+            return;
+        }
+
+        if (typeof snap === 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Midtrans belum aktif',
+                text: 'Script Snap Midtrans belum dimuat di halaman.'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: `${config.midtransTokenUrlBase}/${kodePesanan}`,
+            type: 'POST',
+            data: {
+                _token: config.csrfToken
+            },
+            beforeSend: function () {
+                Swal.fire({
+                    title: 'Mempersiapkan pembayaran',
+                    text: 'Mohon tunggu, sistem sedang membuat token pembayaran.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (response) {
+                Swal.close();
+
+                if (!response.success || !response.snap_token) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal membuat pembayaran',
+                        text: response.message || 'Snap token tidak tersedia.'
+                    });
+                    return;
+                }
+
+                snap.pay(response.snap_token, {
+                    onSuccess: function () {
+                        syncMidtransStatus(kodePesanan);
+                    },
+                    onPending: function () {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Pembayaran belum selesai',
+                            text: 'Silakan selesaikan pembayaran Anda dari halaman riwayat transaksi.',
+                            confirmButtonText: 'Lihat Riwayat'
+                        }).then(() => {
+                            resetFormPenjualan();
+
+                            if (typeof loadContent === 'function') {
+                                loadContent(config.riwayatPenjualanUrl);
+                                return;
+                            }
+
+                            window.location.href = config.riwayatPenjualanUrl;
+                        });
+                    },
+                    onError: function () {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Pembayaran gagal',
+                            text: 'Pembayaran gagal diproses oleh Midtrans.'
+                        });
+                    },
+                    onClose: function () {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Pembayaran belum diselesaikan',
+                            text: 'Anda dapat melanjutkan pembayaran dari halaman riwayat transaksi.',
+                            confirmButtonText: 'Lihat Riwayat'
+                        }).then(() => {
+                            resetFormPenjualan();
+
+                            if (typeof loadContent === 'function') {
+                                loadContent(config.riwayatPenjualanUrl);
+                                return;
+                            }
+
+                            window.location.href = config.riwayatPenjualanUrl;
+                        });
+                    }
+                });
+            },
+            error: function (xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal membuat pembayaran',
+                    html: getErrorMessage(xhr, 'Token pembayaran Midtrans gagal dibuat.')
+                });
+            }
+        });
+    }
+
+    $(document).off('click', '.btn-bayar-midtrans').on('click', '.btn-bayar-midtrans', function () {
+        const kodePesanan = $(this).data('kode');
+        openMidtransPayment(kodePesanan);
+    });
+
+    function syncMidtransStatus(kodePesanan) {
+        $.ajax({
+            url: `${config.syncMidtransStatusUrlBase}/${kodePesanan}`,
+            type: 'POST',
+            data: {
+                _token: config.csrfToken
+            },
+            beforeSend: function () {
+                Swal.fire({
+                    title: 'Menyinkronkan pembayaran',
+                    text: 'Mohon tunggu, sistem sedang mengecek status pembayaran.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (response) {
+                if (response.success && response.status_pembayaran === 'Lunas') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Pembayaran berhasil',
+                        text: 'Status pembayaran berhasil diperbarui menjadi Lunas.',
+                        confirmButtonText: 'Lihat Riwayat'
+                    }).then(() => {
+                        resetFormPenjualan();
+
+                        if (typeof loadContent === 'function') {
+                            loadContent(config.riwayatPenjualanUrl);
+                            return;
+                        }
+
+                        window.location.href = config.riwayatPenjualanUrl;
+                    });
+
+                    return;
+                }
+
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Pembayaran diproses',
+                    text: response.message || 'Status pembayaran berhasil disinkronkan.',
+                    confirmButtonText: 'Lihat Riwayat'
+                }).then(() => {
+                    resetFormPenjualan();
+
+                    if (typeof loadContent === 'function') {
+                        loadContent(config.riwayatPenjualanUrl);
+                        return;
+                    }
+
+                    window.location.href = config.riwayatPenjualanUrl;
+                });
+            },
+            error: function (xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal sinkron pembayaran',
+                    html: getErrorMessage(xhr, 'Status pembayaran gagal disinkronkan.')
+                });
+            }
+        });
+    }
+
+
 
     initSelectBarang();
     applyKategoriFilter();

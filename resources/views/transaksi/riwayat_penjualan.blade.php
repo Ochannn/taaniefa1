@@ -34,60 +34,18 @@
             </div>
         </div>
     </div>
-
-    <div class="modal fade" id="modalUploadBuktiRiwayat" tabindex="-1" role="dialog" aria-labelledby="modalUploadBuktiRiwayatLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <form id="formUploadBuktiRiwayat" enctype="multipart/form-data">
-                @csrf
-
-                <input type="hidden" id="upload_riwayat_kode_pesanan" name="kode_pesanan">
-
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalUploadBuktiRiwayatLabel">Upload Bukti Pembayaran</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-
-                    <div class="modal-body">
-                        <p class="text-muted mb-3">
-                            Unggah bukti pembayaran untuk transaksi <strong id="upload_riwayat_kode_pesanan_text">-</strong>.
-                        </p>
-
-                        <div class="form-group">
-                            <label>Bukti Pembayaran</label>
-                            <input type="file" name="bukti_pembayaran" id="bukti_pembayaran_riwayat" class="form-control" accept=".jpg,.jpeg,.png,.pdf" required>
-                            <small class="text-muted">
-                                Format: JPG, JPEG, PNG, atau PDF. Maksimal 2 MB.
-                            </small>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-dismiss="modal">
-                            Batal
-                        </button>
-
-                        <button type="submit" class="btn btn-success">
-                            Upload Bukti
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
 
 <script>
     window.riwayatPenjualanConfig = {
         dataUrl: "{{ route('ajax.transaksi.penjualan.data') }}",
         transaksiPenjualanUrl: "{{ route('ajax.transaksi.penjualan') }}",
+        showUrlBase: "{{ url('/ajax/transaksi/penjualan/show') }}",
         deleteUrlBase: "{{ url('/ajax/transaksi/penjualan/delete') }}",
-        uploadBuktiUrlBase: "{{ url('/ajax/transaksi/penjualan/upload-bukti') }}",
         validasiPembayaranUrlBase: "{{ url('/ajax/transaksi/penjualan/validasi-pembayaran') }}",
         tolakPembayaranUrlBase: "{{ url('/ajax/transaksi/penjualan/tolak-pembayaran') }}",
         updateStatusUrlBase: "{{ url('/ajax/transaksi/penjualan/update-status') }}",
+        midtransTokenUrlBase: "{{ url('/ajax/transaksi/penjualan/midtrans-token') }}",
         isAdmin: @json(in_array($user->kode_role, ['KRL001', 'KRL002'])),
         csrfToken: "{{ csrf_token() }}"
     };
@@ -107,6 +65,15 @@
             return 'Rp. ' + formatNumber(value || 0);
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function getErrorMessage(xhr, defaultMessage) {
             if (xhr.responseJSON) {
                 if (xhr.responseJSON.message) {
@@ -115,9 +82,11 @@
 
                 if (xhr.responseJSON.errors) {
                     let html = '<ul style="text-align:left; margin:0; padding-left:18px;">';
+
                     Object.values(xhr.responseJSON.errors).forEach(function (err) {
-                        html += `<li>${err[0]}</li>`;
+                        html += `<li>${escapeHtml(err[0])}</li>`;
                     });
+
                     html += '</ul>';
                     return html;
                 }
@@ -171,7 +140,304 @@
                 return `<span class="badge badge-danger">${value}</span>`;
             }
 
+            if (value === 'Gagal Bayar') {
+                return `<span class="badge badge-danger">${value}</span>`;
+            }
+
             return `<span class="badge badge-secondary">${value}</span>`;
+        }
+
+        function buildDeleteDetailHtml(response) {
+            const header = response.header || {};
+            const details = response.details || [];
+
+            let itemRows = '';
+
+            if (details.length > 0) {
+                details.forEach(function (item, index) {
+                    itemRows += `
+                        <tr>
+                            <td style="padding:8px; border:1px solid #dee2e6;">${index + 1}</td>
+                            <td style="padding:8px; border:1px solid #dee2e6;">${escapeHtml(item.kode_barang || '-')}</td>
+                            <td style="padding:8px; border:1px solid #dee2e6;">${escapeHtml(item.nama_barang || '-')}</td>
+                            <td style="padding:8px; border:1px solid #dee2e6; text-align:right;">${formatNumber(parseFloat(item.qty) || 0)}</td>
+                            <td style="padding:8px; border:1px solid #dee2e6; text-align:right;">${formatRupiah(parseFloat(item.harga_satuan) || 0)}</td>
+                            <td style="padding:8px; border:1px solid #dee2e6; text-align:right;">${formatRupiah(parseFloat(item.subtotal_pesanan) || 0)}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                itemRows = `
+                    <tr>
+                        <td colspan="6" style="padding:10px; border:1px solid #dee2e6; text-align:center;">
+                            Detail barang tidak tersedia.
+                        </td>
+                    </tr>
+                `;
+            }
+
+            return `
+                <div style="text-align:left;">
+                    <div style="margin-bottom:14px;">
+                        <table style="width:100%; font-size:13px;">
+                            <tr>
+                                <td style="width:150px; padding:3px 0;">Kode Pesanan</td>
+                                <td style="padding:3px 0;">: <strong>${escapeHtml(header.kode_pesanan || '-')}</strong></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Tanggal</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.tgl_pesanan || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Customer</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.nama_customer || '-')} (${escapeHtml(header.kode_customer || '-')})</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Pengiriman</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.jenis_pengiriman || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Status Pesanan</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.status_pesanan || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Status Pembayaran</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.status_pembayaran || '-')}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:3px 0;">Alamat Kirim</td>
+                                <td style="padding:3px 0;">: ${escapeHtml(header.alamat_kirim_pesanan || '-')}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="max-height:260px; overflow:auto; margin-bottom:14px;">
+                        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                            <thead>
+                                <tr>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">No</th>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">Kode</th>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">Barang</th>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">Qty</th>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">Harga</th>
+                                    <th style="padding:8px; border:1px solid #dee2e6; background:#f8f9fa;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <table style="width:100%; font-size:13px;">
+                        <tr>
+                            <td style="padding:3px 0;">Total Barang</td>
+                            <td style="padding:3px 0; text-align:right;">
+                                <strong>${formatRupiah(parseFloat(header.total_detail_pesanan) || 0)}</strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:3px 0;">Ongkir</td>
+                            <td style="padding:3px 0; text-align:right;">
+                                <strong>${formatRupiah(parseFloat(header.ongkir_pesanan) || 0)}</strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:3px 0;">Grand Total</td>
+                            <td style="padding:3px 0; text-align:right;">
+                                <strong>${formatRupiah(parseFloat(header.grand_total_pesanan) || 0)}</strong>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div style="margin-top:14px; padding:10px; border-radius:8px; background:#fff3cd; color:#856404; font-size:13px;">
+                        Data akan disembunyikan menggunakan soft delete, bukan dihapus permanen dari database.
+                    </div>
+                </div>
+            `;
+        }
+
+        function deleteRiwayatPenjualan(kodePesanan) {
+            $.ajax({
+                url: `${config.deleteUrlBase}/${kodePesanan}`,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken,
+                    _method: 'DELETE'
+                },
+                beforeSend: function () {
+                    Swal.fire({
+                        title: 'Menghapus data',
+                        text: 'Mohon tunggu.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message || 'Data berhasil dihapus.'
+                    });
+
+                    tableRiwayatPenjualan.ajax.reload(null, false);
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal menghapus',
+                        html: getErrorMessage(xhr, 'Data gagal dihapus.')
+                    });
+                }
+            });
+        }
+
+        function openDeleteConfirmation(kodePesanan) {
+            $.ajax({
+                url: `${config.showUrlBase}/${kodePesanan}`,
+                type: 'GET',
+                beforeSend: function () {
+                    Swal.fire({
+                        title: 'Mengambil detail pesanan',
+                        text: 'Mohon tunggu.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                },
+                success: async function (response) {
+                    if (!response.success) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal mengambil detail',
+                            text: response.message || 'Detail transaksi tidak ditemukan.'
+                        });
+                        return;
+                    }
+
+                    const result = await Swal.fire({
+                        title: 'Hapus transaksi ini?',
+                        html: buildDeleteDetailHtml(response),
+                        icon: 'warning',
+                        width: 900,
+                        showCancelButton: true,
+                        confirmButtonText: 'Ya, hapus',
+                        cancelButtonText: 'Batal',
+                        confirmButtonColor: '#dc3545',
+                        focusCancel: true
+                    });
+
+                    if (!result.isConfirmed) {
+                        return;
+                    }
+
+                    deleteRiwayatPenjualan(kodePesanan);
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal mengambil detail',
+                        html: getErrorMessage(xhr, 'Detail transaksi tidak berhasil dimuat.')
+                    });
+                }
+            });
+        }
+
+        function openMidtransPayment(kodePesanan) {
+            if (!kodePesanan) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Kode pesanan tidak ditemukan',
+                    text: 'Kode pesanan tidak tersedia untuk proses pembayaran.'
+                });
+                return;
+            }
+
+            if (typeof snap === 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Midtrans belum aktif',
+                    text: 'Script Snap Midtrans belum dimuat di halaman.'
+                });
+                return;
+            }
+
+            $.ajax({
+                url: `${config.midtransTokenUrlBase}/${kodePesanan}`,
+                type: 'POST',
+                data: {
+                    _token: config.csrfToken
+                },
+                beforeSend: function () {
+                    Swal.fire({
+                        title: 'Mempersiapkan pembayaran',
+                        text: 'Mohon tunggu, sistem sedang membuat token pembayaran.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                },
+                success: function (response) {
+                    Swal.close();
+
+                    if (!response.success || !response.snap_token) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal membuat pembayaran',
+                            text: response.message || 'Snap token tidak tersedia.'
+                        });
+                        return;
+                    }
+
+                    snap.pay(response.snap_token, {
+                        onSuccess: function () {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Pembayaran berhasil',
+                                text: 'Pembayaran berhasil diproses.'
+                            });
+
+                            tableRiwayatPenjualan.ajax.reload(null, false);
+                        },
+                        onPending: function () {
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Pembayaran belum selesai',
+                                text: 'Silakan selesaikan pembayaran Anda.'
+                            });
+
+                            tableRiwayatPenjualan.ajax.reload(null, false);
+                        },
+                        onError: function () {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Pembayaran gagal',
+                                text: 'Pembayaran gagal diproses oleh Midtrans.'
+                            });
+                        },
+                        onClose: function () {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Pembayaran belum diselesaikan',
+                                text: 'Anda menutup popup pembayaran sebelum proses selesai.'
+                            });
+
+                            tableRiwayatPenjualan.ajax.reload(null, false);
+                        }
+                    });
+                },
+                error: function (xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal membuat pembayaran',
+                        html: getErrorMessage(xhr, 'Token pembayaran Midtrans gagal dibuat.')
+                    });
+                }
+            });
         }
 
         const tableRiwayatPenjualan = $('#tableRiwayatPenjualan').DataTable({
@@ -197,23 +463,24 @@
                     data: null,
                     render: function (data) {
                         return `
-                            <strong>${data.nama_customer || '-'}</strong>
+                            <strong>${escapeHtml(data.nama_customer || '-')}</strong>
                             <br>
-                            <small class="text-muted">${data.kode_customer || '-'}</small>
+                            <small class="text-muted">${escapeHtml(data.kode_customer || '-')}</small>
                         `;
                     }
                 },
                 {
                     data: 'jenis_pengiriman',
                     render: function (data) {
-                        return data || '-';
+                        return escapeHtml(data || '-');
                     }
                 },
                 {
                     data: null,
                     render: function (data) {
-                        const metode = data.metode_pembayaran || '-';
-                        const bank = data.bank_tujuan ? `<br><small class="text-muted">${data.bank_tujuan}</small>` : '';
+                        const metode = escapeHtml(data.metode_pembayaran || '-');
+                        const bank = data.bank_tujuan ? `<br><small class="text-muted">${escapeHtml(data.bank_tujuan)}</small>` : '';
+
                         return `${metode}${bank}`;
                     }
                 },
@@ -246,35 +513,24 @@
                         let html = `<div class="d-flex flex-wrap" style="gap: 6px;">`;
 
                         html += `
-                            <button type="button" class="btn btn-sm btn-secondary btn-detail-riwayat" data-kode="${data.kode_pesanan}">
+                            <button type="button" class="btn btn-sm btn-secondary btn-detail-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
                                 Detail
                             </button>
                         `;
 
-                        if (data.bukti_pembayaran) {
-                            html += `
-                                <a href="/storage/${data.bukti_pembayaran}" target="_blank" class="btn btn-sm btn-dark">
-                                    Lihat Bukti
-                                </a>
-                            `;
-                        }
-
                         if (config.isAdmin) {
                             html += `
-                                <button type="button" class="btn btn-sm btn-primary btn-edit-riwayat" data-kode="${data.kode_pesanan}">
-                                    Edit
-                                </button>
-                                <button type="button" class="btn btn-sm btn-danger btn-delete-riwayat" data-kode="${data.kode_pesanan}">
+                                <button type="button" class="btn btn-sm btn-danger btn-delete-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
                                     Delete
                                 </button>
                             `;
 
                             if (statusPembayaran === 'Menunggu Validasi') {
                                 html += `
-                                    <button type="button" class="btn btn-sm btn-success btn-validasi-riwayat" data-kode="${data.kode_pesanan}">
+                                    <button type="button" class="btn btn-sm btn-success btn-validasi-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
                                         Validasi
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-warning btn-tolak-riwayat" data-kode="${data.kode_pesanan}">
+                                    <button type="button" class="btn btn-sm btn-warning btn-tolak-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
                                         Tolak
                                     </button>
                                 `;
@@ -283,8 +539,8 @@
                             if (statusPembayaran === 'Lunas') {
                                 html += `
                                     <button type="button" class="btn btn-sm btn-info btn-status-riwayat"
-                                        data-kode="${data.kode_pesanan}"
-                                        data-status="${statusPesanan}">
+                                        data-kode="${escapeHtml(data.kode_pesanan)}"
+                                        data-status="${escapeHtml(statusPesanan)}">
                                         Ubah Status
                                     </button>
                                 `;
@@ -296,21 +552,21 @@
 
                         if (statusPesanan === 'Pending' && statusPembayaran === 'Belum Dibayar') {
                             html += `
-                                <button type="button" class="btn btn-sm btn-primary btn-edit-riwayat" data-kode="${data.kode_pesanan}">
-                                    Edit
-                                </button>
-                                <button type="button" class="btn btn-sm btn-danger btn-delete-riwayat" data-kode="${data.kode_pesanan}">
+                                <button type="button" class="btn btn-sm btn-danger btn-delete-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
                                     Delete
                                 </button>
-                                <button type="button" class="btn btn-sm btn-success btn-upload-bukti-riwayat" data-kode="${data.kode_pesanan}">
-                                    Upload Bukti
-                                </button>
                             `;
+
+                            if (data.metode_pembayaran === 'Midtrans') {
+                                html += `
+                                    <button type="button" class="btn btn-sm btn-success btn-bayar-riwayat" data-kode="${escapeHtml(data.kode_pesanan)}">
+                                        Bayar
+                                    </button>
+                                `;
+                            }
                         } else if (statusPembayaran === 'Ditolak') {
                             html += `
-                                <button type="button" class="btn btn-sm btn-warning btn-upload-bukti-riwayat" data-kode="${data.kode_pesanan}">
-                                    Upload Ulang
-                                </button>
+                                <span class="badge badge-danger align-self-center">Pembayaran Ditolak</span>
                             `;
                         } else {
                             html += `<span class="badge badge-secondary align-self-center">Locked</span>`;
@@ -323,7 +579,12 @@
             ]
         });
 
-        $(document).off('click', '.btn-edit-riwayat, .btn-detail-riwayat').on('click', '.btn-edit-riwayat, .btn-detail-riwayat', function () {
+        $(document).off('click', '.btn-bayar-riwayat').on('click', '.btn-bayar-riwayat', function () {
+            const kodePesanan = $(this).data('kode');
+            openMidtransPayment(kodePesanan);
+        });
+
+        $(document).off('click', '.btn-detail-riwayat').on('click', '.btn-detail-riwayat', function () {
             const kodePesanan = $(this).data('kode');
 
             loadContent(config.transaksiPenjualanUrl);
@@ -341,109 +602,9 @@
             }, 800);
         });
 
-        $(document).off('click', '.btn-delete-riwayat').on('click', '.btn-delete-riwayat', async function () {
+        $(document).off('click', '.btn-delete-riwayat').on('click', '.btn-delete-riwayat', function () {
             const kodePesanan = $(this).data('kode');
-
-            const result = await Swal.fire({
-                title: 'Hapus transaksi ini?',
-                text: `Transaksi ${kodePesanan} akan dihapus.`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, hapus',
-                cancelButtonText: 'Batal'
-            });
-
-            if (!result.isConfirmed) {
-                return;
-            }
-
-            $.ajax({
-                url: `${config.deleteUrlBase}/${kodePesanan}`,
-                type: 'POST',
-                data: {
-                    _token: config.csrfToken,
-                    _method: 'DELETE'
-                },
-                beforeSend: function () {
-                    Swal.fire({
-                        title: 'Menghapus data',
-                        text: 'Mohon tunggu...',
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-                },
-                success: function (response) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: response.message || 'Data berhasil dihapus.'
-                    });
-
-                    tableRiwayatPenjualan.ajax.reload(null, false);
-                },
-                error: function (xhr) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal menghapus',
-                        html: getErrorMessage(xhr, 'Data gagal dihapus.')
-                    });
-                }
-            });
-        });
-
-        $(document).off('click', '.btn-upload-bukti-riwayat').on('click', '.btn-upload-bukti-riwayat', function () {
-            const kodePesanan = $(this).data('kode');
-
-            $('#upload_riwayat_kode_pesanan').val(kodePesanan);
-            $('#upload_riwayat_kode_pesanan_text').text(kodePesanan);
-            $('#bukti_pembayaran_riwayat').val('');
-
-            $('#modalUploadBuktiRiwayat').modal('show');
-        });
-
-        $(document).off('submit', '#formUploadBuktiRiwayat').on('submit', '#formUploadBuktiRiwayat', function (e) {
-            e.preventDefault();
-
-            const kodePesanan = $('#upload_riwayat_kode_pesanan').val();
-            const formData = new FormData(this);
-
-            $.ajax({
-                url: `${config.uploadBuktiUrlBase}/${kodePesanan}`,
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                beforeSend: function () {
-                    Swal.fire({
-                        title: 'Mengunggah bukti',
-                        text: 'Mohon tunggu sebentar.',
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-                },
-                success: function (response) {
-                    $('#modalUploadBuktiRiwayat').modal('hide');
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: response.message || 'Bukti pembayaran berhasil diunggah.'
-                    });
-
-                    tableRiwayatPenjualan.ajax.reload(null, false);
-                },
-                error: function (xhr) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal upload',
-                        html: getErrorMessage(xhr, 'Bukti pembayaran gagal diunggah.')
-                    });
-                }
-            });
+            openDeleteConfirmation(kodePesanan);
         });
 
         $(document).off('click', '.btn-validasi-riwayat').on('click', '.btn-validasi-riwayat', function () {
@@ -494,7 +655,7 @@
                 title: 'Tolak pembayaran?',
                 input: 'textarea',
                 inputLabel: 'Catatan Penolakan',
-                inputPlaceholder: 'Contoh: Bukti pembayaran tidak jelas atau nominal tidak sesuai.',
+                inputPlaceholder: 'Contoh: Pembayaran tidak valid.',
                 inputAttributes: {
                     maxlength: 255
                 },

@@ -8,9 +8,269 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use App\Helpers\LogAktivitasHelper;
 use App\Http\Controllers\NotifikasiController;
+use Midtrans\Config;
+use Midtrans\Snap;
+use Midtrans\Transaction as MidtransTransaction;
 
 class TransaksiController extends Controller
 {
+
+    public function syncMidtransStatusPenjualan(Request $request, $kode_pesanan)
+    {
+        $user = Auth::user();
+
+        $header = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
+
+        if (!$header) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data penjualan tidak ditemukan atau Anda tidak memiliki akses.'
+            ], 404);
+        }
+
+        $pembayaran = DB::table('pembayaran_penjualan')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->first();
+
+        if (!$pembayaran) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data pembayaran tidak ditemukan.'
+            ], 404);
+        }
+
+        if (empty($pembayaran->midtrans_order_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order ID Midtrans tidak ditemukan.'
+            ], 422);
+        }
+
+        $this->setupMidtrans();
+
+        try {
+            $statusResponse = MidtransTransaction::status($pembayaran->midtrans_order_id);
+
+            $transactionStatus = $statusResponse->transaction_status ?? null;
+            $fraudStatus = $statusResponse->fraud_status ?? null;
+            $paymentType = $statusResponse->payment_type ?? null;
+            $transactionId = $statusResponse->transaction_id ?? null;
+
+            if (in_array($transactionStatus, ['expire', 'cancel', 'deny', 'failure'])) {
+                $this->gagalkanPembayaranDanKembalikanStok(
+                    $kode_pesanan,
+                    $transactionStatus,
+                    $fraudStatus,
+                    $paymentType,
+                    $transactionId
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Pembayaran gagal atau expired. Stok dikembalikan.',
+                    'status_pembayaran' => 'Gagal Bayar',
+                ]);
+            }
+
+            $statusPembayaran = 'Belum Dibayar';
+            $statusPesanan = null;
+            $tanggalPembayaran = null;
+
+            if ($transactionStatus === 'capture') {
+                if ($fraudStatus === 'accept') {
+                    $statusPembayaran = 'Lunas';
+                    $statusPesanan = 'Diproses';
+                    $tanggalPembayaran = now();
+                } else {
+                    $statusPembayaran = 'Menunggu Validasi';
+                }
+            }
+
+            if ($transactionStatus === 'settlement') {
+                $statusPembayaran = 'Lunas';
+                $statusPesanan = 'Diproses';
+                $tanggalPembayaran = now();
+            }
+
+            if ($transactionStatus === 'pending') {
+                $statusPembayaran = 'Belum Dibayar';
+            }
+
+            DB::transaction(function () use (
+                $pembayaran,
+                $kode_pesanan,
+                $statusPembayaran,
+                $statusPesanan,
+                $transactionStatus,
+                $fraudStatus,
+                $paymentType,
+                $transactionId,
+                $tanggalPembayaran
+            ) {
+                DB::table('pembayaran_penjualan')
+                    ->where('kode_pembayaran', $pembayaran->kode_pembayaran)
+                    ->update([
+                        'status_pembayaran' => $statusPembayaran,
+                        'payment_type' => $paymentType,
+                        'transaction_status' => $transactionStatus,
+                        'fraud_status' => $fraudStatus,
+                        'transaction_id' => $transactionId,
+                        'tanggal_pembayaran' => $tanggalPembayaran,
+                        'updated_at' => now(),
+                    ]);
+
+                $updatePenjualan = [
+                    'status_pembayaran' => $statusPembayaran,
+                ];
+
+                if ($statusPesanan) {
+                    $updatePenjualan['status_pesanan'] = $statusPesanan;
+                }
+
+                DB::table('transaksi_penjualan')
+                    ->where('kode_pesanan', $kode_pesanan)
+                    ->update($updatePenjualan);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status pembayaran berhasil disinkronkan.',
+                'status_pembayaran' => $statusPembayaran,
+                'transaction_status' => $transactionStatus,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal sinkron status Midtrans: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function midtransNotification(Request $request)
+    {
+        $payload = $request->all();
+
+        $orderId = $payload['order_id'] ?? null;
+        $statusCode = $payload['status_code'] ?? null;
+        $grossAmount = $payload['gross_amount'] ?? null;
+        $signatureKey = $payload['signature_key'] ?? null;
+
+        if (!$orderId || !$statusCode || !$grossAmount || !$signatureKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payload Midtrans tidak valid.'
+            ], 400);
+        }
+
+        $serverKey = config('midtrans.server_key');
+        $validSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
+
+        if ($signatureKey !== $validSignature) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Signature Midtrans tidak valid.'
+            ], 403);
+        }
+
+        $pembayaran = DB::table('pembayaran_penjualan')
+            ->where('midtrans_order_id', $orderId)
+            ->first();
+
+        if (!$pembayaran) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data pembayaran tidak ditemukan.'
+            ], 404);
+        }
+
+        $transactionStatus = $payload['transaction_status'] ?? null;
+        $fraudStatus = $payload['fraud_status'] ?? null;
+        $paymentType = $payload['payment_type'] ?? null;
+        $transactionId = $payload['transaction_id'] ?? null;
+
+        if (in_array($transactionStatus, ['expire', 'cancel', 'deny', 'failure'])) {
+            $this->gagalkanPembayaranDanKembalikanStok(
+                $pembayaran->kode_pesanan,
+                $transactionStatus,
+                $fraudStatus,
+                $paymentType,
+                $transactionId
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pembayaran gagal atau expired. Stok berhasil dikembalikan.'
+            ]);
+        }
+
+        $statusPembayaran = 'Belum Dibayar';
+        $statusPesanan = null;
+
+        if ($transactionStatus === 'capture') {
+            if ($fraudStatus === 'accept') {
+                $statusPembayaran = 'Lunas';
+                $statusPesanan = 'Diproses';
+            } else {
+                $statusPembayaran = 'Menunggu Validasi';
+            }
+        }
+
+        if ($transactionStatus === 'settlement') {
+            $statusPembayaran = 'Lunas';
+            $statusPesanan = 'Diproses';
+        }
+
+        if ($transactionStatus === 'pending') {
+            $statusPembayaran = 'Belum Dibayar';
+        }
+
+        DB::transaction(function () use (
+            $pembayaran,
+            $statusPembayaran,
+            $statusPesanan,
+            $transactionStatus,
+            $fraudStatus,
+            $paymentType,
+            $transactionId
+        ) {
+            DB::table('pembayaran_penjualan')
+                ->where('kode_pembayaran', $pembayaran->kode_pembayaran)
+                ->update([
+                    'status_pembayaran'  => $statusPembayaran,
+                    'payment_type'        => $paymentType,
+                    'transaction_status'  => $transactionStatus,
+                    'fraud_status'        => $fraudStatus,
+                    'transaction_id'      => $transactionId,
+                    'tanggal_pembayaran'  => $statusPembayaran === 'Lunas' ? now() : null,
+                    'updated_at'          => now(),
+                ]);
+
+            $updatePenjualan = [
+                'status_pembayaran' => $statusPembayaran,
+            ];
+
+            if ($statusPesanan) {
+                $updatePenjualan['status_pesanan'] = $statusPesanan;
+            }
+
+            DB::table('transaksi_penjualan')
+                ->where('kode_pesanan', $pembayaran->kode_pesanan)
+                ->update($updatePenjualan);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notifikasi Midtrans berhasil diproses.'
+        ]);
+    }
+
+    private function setupMidtrans()
+    {
+        Config::$serverKey = config('midtrans.server_key');
+        Config::$isProduction = (bool) config('midtrans.is_production');
+        Config::$isSanitized = (bool) config('midtrans.is_sanitized');
+        Config::$is3ds = (bool) config('midtrans.is_3ds');
+    }
 
     private function getKodeUserCustomerByKodeCustomer($kodeCustomer)
     {
@@ -999,7 +1259,8 @@ class TransaksiController extends Controller
                 'tp.harga_estimasi',
                 'tp.status_custom'
             )
-            ->where('tp.kode_pesanan', $kodePesanan);
+            ->where('tp.kode_pesanan', $kodePesanan)
+            ->whereNull('tp.deleted_at');
 
         if ($this->isCustomerRole($user->kode_role)) {
             $customerAktif = $this->getCustomerAktifByUser();
@@ -1083,8 +1344,8 @@ class TransaksiController extends Controller
             'items'                => 'required|array|min:1',
             'items.*.kode_barang'  => 'required|string',
             'items.*.nama_barang'  => 'required|string',
-            'items.*.qty'          => 'required|numeric|min:1',
-            'metode_pembayaran'    => 'required|string|in:Transfer Bank,QRIS,Cash',
+            'items.*.qty'          => 'required|integer|min:1',
+            'metode_pembayaran'    => 'required|string|in:Midtrans',
             'bank_tujuan'          => 'nullable|string|max:50',
         ];
 
@@ -1096,13 +1357,6 @@ class TransaksiController extends Controller
         $request->validate($rules);
 
         $jenisPemesanan = $request->jenis_pemesanan ?: 'Standart';
-
-        if ($request->metode_pembayaran === 'Transfer Bank' && empty($request->bank_tujuan)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bank tujuan wajib dipilih untuk metode Transfer Bank.'
-            ], 422);
-        }
 
         if ($this->isCustomerRole($user->kode_role)) {
             $customerAktif = $this->getCustomerAktifByUser();
@@ -1151,7 +1405,7 @@ class TransaksiController extends Controller
                 $detailRows = [];
 
                 foreach ($request->items as $item) {
-                    $qty = (float) $item['qty'];
+                    $qty = (int) $item['qty'];
 
                     $barang = DB::table('master_barang')
                         ->select('kode_barang', 'nama_barang', 'kapasitas', 'harga_jual')
@@ -1218,13 +1472,18 @@ class TransaksiController extends Controller
                 DB::table('transaksi_penjualan')->insert($dataPenjualan);
 
                 DB::table('pembayaran_penjualan')->insert([
-                    'kode_pembayaran'     => $this->generateKodePembayaran(),
-                    'kode_pesanan'        => $kodePesanan,
-                    'metode_pembayaran'   => $request->metode_pembayaran,
-                    'bank_tujuan'         => $request->bank_tujuan,
-                    'nominal_pembayaran'  => $grandTotal,
-                    'status_pembayaran'   => 'Belum Dibayar',
-                    'created_at'          => now(),
+                    'kode_pembayaran'        => $this->generateKodePembayaran(),
+                    'kode_pesanan'           => $kodePesanan,
+                    'midtrans_order_id'      => null,
+                    'snap_token'             => null,
+                    'metode_pembayaran'      => 'Midtrans',
+                    'bank_tujuan'            => null,
+                    'nominal_pembayaran'     => $grandTotal,
+                    'status_pembayaran'      => 'Belum Dibayar',
+                    'expired_at'             => now()->addMinutes(30),
+                    'stok_dikembalikan_at'   => null,
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
                 ]);
 
                 DB::table('transaksi_penjualan_detail')->insert($detailRows);
@@ -1244,16 +1503,14 @@ class TransaksiController extends Controller
 
             $kodeUserCustomer = $this->getKodeUserCustomerByKodeCustomer($kodeCustomer);
 
-            if ($request->metode_pembayaran !== 'Cash') {
-                $this->kirimNotifikasiCustomer(
-                    $kodeUserCustomer,
-                    'upload_bukti_pembayaran',
-                    'Upload Bukti Pembayaran',
-                    'Pesanan ' . $kodePesanan . ' berhasil dibuat. Silakan upload bukti pembayaran.',
-                    'transaksi_penjualan',
-                    $kodePesanan
-                );
-            }
+            $this->kirimNotifikasiCustomer(
+                $kodeUserCustomer,
+                'lanjutkan_pembayaran',
+                'Lanjutkan Pembayaran',
+                'Pesanan ' . $kodePesanan . ' berhasil dibuat. Silakan lanjutkan pembayaran melalui Midtrans.',
+                'transaksi_penjualan',
+                $kodePesanan
+            );
 
             $this->kirimNotifikasiAdmin(
                 'pesanan_baru',
@@ -1274,6 +1531,232 @@ class TransaksiController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyimpan transaksi: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function gagalkanPembayaranDanKembalikanStok(
+        $kodePesanan,
+        $transactionStatus = null,
+        $fraudStatus = null,
+        $paymentType = null,
+        $transactionId = null
+    ) {
+        DB::transaction(function () use (
+            $kodePesanan,
+            $transactionStatus,
+            $fraudStatus,
+            $paymentType,
+            $transactionId
+        ) {
+            $pembayaran = DB::table('pembayaran_penjualan')
+                ->where('kode_pesanan', $kodePesanan)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$pembayaran) {
+                return;
+            }
+
+            $penjualan = DB::table('transaksi_penjualan')
+                ->where('kode_pesanan', $kodePesanan)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$penjualan) {
+                return;
+            }
+
+            if ($pembayaran->status_pembayaran === 'Lunas' || $penjualan->status_pembayaran === 'Lunas') {
+                return;
+            }
+
+            if (empty($pembayaran->stok_dikembalikan_at)) {
+                $details = DB::table('transaksi_penjualan_detail')
+                    ->where('kode_pesanan', $kodePesanan)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($details as $detail) {
+                    DB::table('master_barang')
+                        ->where('kode_barang', $detail->kode_barang)
+                        ->increment('kapasitas', (float) $detail->qty);
+                }
+            }
+
+            DB::table('pembayaran_penjualan')
+                ->where('kode_pembayaran', $pembayaran->kode_pembayaran)
+                ->update([
+                    'status_pembayaran'    => 'Gagal Bayar',
+                    'transaction_status'    => $transactionStatus,
+                    'fraud_status'          => $fraudStatus,
+                    'payment_type'          => $paymentType,
+                    'transaction_id'        => $transactionId,
+                    'stok_dikembalikan_at'  => $pembayaran->stok_dikembalikan_at ?: now(),
+                    'updated_at'            => now(),
+                ]);
+
+            DB::table('transaksi_penjualan')
+                ->where('kode_pesanan', $kodePesanan)
+                ->update([
+                    'status_pembayaran' => 'Gagal Bayar',
+                    'status_pesanan'    => 'Batal',
+                ]);
+        });
+    }
+
+    public function createSnapTokenPenjualan(Request $request, $kode_pesanan)
+    {
+        $user = Auth::user();
+
+        $header = $this->getPenjualanHeaderForUser($kode_pesanan, $user);
+
+        if (!$header) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data penjualan tidak ditemukan atau Anda tidak memiliki akses.'
+            ], 404);
+        }
+
+        if ($header->status_pembayaran !== 'Belum Dibayar') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pembayaran tidak dapat diproses karena status pembayaran bukan Belum Dibayar.'
+            ], 422);
+        }
+
+        $pembayaran = DB::table('pembayaran_penjualan')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->first();
+
+        if (!$pembayaran) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data pembayaran tidak ditemukan.'
+            ], 404);
+        }
+
+        
+
+        $details = DB::table('transaksi_penjualan_detail')
+            ->where('kode_pesanan', $kode_pesanan)
+            ->get();
+
+        if ($details->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Detail pesanan tidak ditemukan.'
+            ], 422);
+        }
+
+        $itemDetails = [];
+        $grossAmount = 0;
+
+        foreach ($details as $detail) {
+            $price = (int) round($detail->harga_satuan);
+            $quantity = (int) $detail->qty;
+
+            if ($price <= 0 || $quantity <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Harga atau qty detail pesanan tidak valid untuk Midtrans.'
+                ], 422);
+            }
+
+            $itemDetails[] = [
+                'id'       => $detail->kode_barang,
+                'price'    => $price,
+                'quantity' => $quantity,
+                'name'     => substr($detail->nama_barang, 0, 50),
+            ];
+
+            $grossAmount += $price * $quantity;
+        }
+
+        $ongkir = (int) round($header->ongkir_pesanan);
+
+        if ($ongkir > 0) {
+            $itemDetails[] = [
+                'id'       => 'ONGKIR',
+                'price'    => $ongkir,
+                'quantity' => 1,
+                'name'     => 'Ongkir Pengiriman',
+            ];
+
+            $grossAmount += $ongkir;
+        }
+
+        if ($grossAmount <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nominal pembayaran tidak valid untuk Midtrans.'
+            ], 422);
+        }
+
+        $midtransOrderId = $kode_pesanan . '-' . time();
+
+        $this->setupMidtrans();
+
+        $expiredAt = $pembayaran->expired_at
+            ? \Carbon\Carbon::parse($pembayaran->expired_at)
+            : now()->addMinutes(30);
+
+        if (now()->greaterThanOrEqualTo($expiredAt)) {
+            $this->gagalkanPembayaranDanKembalikanStok($kode_pesanan);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Waktu pembayaran sudah habis. Pesanan dibatalkan dan stok dikembalikan.'
+            ], 422);
+        }
+
+        if (!empty($pembayaran->snap_token)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Snap token sudah tersedia.',
+                'snap_token' => $pembayaran->snap_token,
+            ]);
+        }
+
+        $remainingMinutes = (int) max(1, ceil(now()->diffInMinutes($expiredAt, false)));
+
+        $params = [
+            'transaction_details' => [
+                'order_id' => $midtransOrderId,
+                'gross_amount' => $grossAmount,
+            ],
+            'customer_details' => [
+                'first_name' => $header->nama_customer ?? 'Customer',
+            ],
+            'item_details' => $itemDetails,
+            'expiry' => [
+                'start_time' => now()->format('Y-m-d H:i:s O'),
+                'unit' => 'minute',
+                'duration' => $remainingMinutes,
+            ],
+        ];
+
+        try {
+            $snapToken = Snap::getSnapToken($params);
+
+            DB::table('pembayaran_penjualan')
+                ->where('kode_pesanan', $kode_pesanan)
+                ->update([
+                    'midtrans_order_id'  => $midtransOrderId,
+                    'snap_token'         => $snapToken,
+                    'nominal_pembayaran' => $grossAmount,
+                    'updated_at'         => now(),
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Snap token berhasil dibuat.',
+                'snap_token' => $snapToken,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat Snap token Midtrans: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -1299,7 +1782,10 @@ class TransaksiController extends Controller
 
         $query = DB::table('transaksi_penjualan as tp')
             ->leftJoin('master_customer as mc', 'tp.kode_customer', '=', 'mc.kode_customer')
-            ->leftJoin('pembayaran_penjualan as pp', 'tp.kode_pesanan', '=', 'pp.kode_pesanan')
+            ->leftJoin('pembayaran_penjualan as pp', function ($join) {
+                $join->on('tp.kode_pesanan', '=', 'pp.kode_pesanan')
+                    ->whereNull('pp.deleted_at');
+            })
             ->select(
                 'tp.kode_pesanan',
                 'tp.tgl_pesanan',
@@ -1311,8 +1797,10 @@ class TransaksiController extends Controller
                 'tp.grand_total_pesanan',
                 'pp.metode_pembayaran',
                 'pp.bank_tujuan',
-                'pp.bukti_pembayaran'
-            );
+                'pp.bukti_pembayaran',
+                'pp.snap_token'
+            )
+            ->whereNull('tp.deleted_at');
 
         if ($this->isCustomerRole($user->kode_role)) {
             $customerAktif = $this->getCustomerAktifByUser();
@@ -1331,7 +1819,6 @@ class TransaksiController extends Controller
 
         return response()->json(['data' => $data]);
     }
-
     public function showPenjualan($kode_pesanan)
     {
         $user = Auth::user();
@@ -1354,14 +1841,15 @@ class TransaksiController extends Controller
                 'subtotal_pesanan'
             )
             ->where('kode_pesanan', $kode_pesanan)
+            ->whereNull('deleted_at')
             ->get();
 
-            return response()->json([
-                'success'  => true,
-                'header'   => $header,
-                'details'  => $details,
-                'can_edit' => $this->isAdminRole($user->kode_role) || $this->canEditDeletePenjualan($header),
-            ]);
+        return response()->json([
+            'success'  => true,
+            'header'   => $header,
+            'details'  => $details,
+            'can_edit' => $this->isAdminRole($user->kode_role) || $this->canEditDeletePenjualan($header),
+        ]);
     }
 
     public function updatePenjualan(Request $request, $kode_pesanan)
@@ -1393,12 +1881,6 @@ class TransaksiController extends Controller
 
         $request->validate($rules);
 
-        if (!$this->validateOngkirByJenis($request->jenis_pengiriman, $request->ongkir_pesanan)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Nilai ongkir tidak sesuai dengan jenis pengiriman.'
-            ], 422);
-        }
 
         $jenisPemesanan = $request->jenis_pemesanan ?: 'Standart';
 
@@ -1631,9 +2113,10 @@ class TransaksiController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($kode_pesanan) {
+            DB::transaction(function () use ($kode_pesanan, $user) {
                 $header = DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
+                    ->whereNull('deleted_at')
                     ->lockForUpdate()
                     ->first();
 
@@ -1641,8 +2124,15 @@ class TransaksiController extends Controller
                     throw new \Exception('Data penjualan tidak ditemukan.');
                 }
 
+                $pembayaran = DB::table('pembayaran_penjualan')
+                    ->where('kode_pesanan', $kode_pesanan)
+                    ->whereNull('deleted_at')
+                    ->lockForUpdate()
+                    ->first();
+
                 $oldDetails = DB::table('transaksi_penjualan_detail')
                     ->where('kode_pesanan', $kode_pesanan)
+                    ->whereNull('deleted_at')
                     ->lockForUpdate()
                     ->get();
 
@@ -1655,40 +2145,73 @@ class TransaksiController extends Controller
                         ->get();
                 }
 
-                foreach ($oldDetails as $old) {
-                    DB::table('master_barang')
-                        ->where('kode_barang', $old->kode_barang)
-                        ->increment('kapasitas', (float) $old->qty);
+                $stokSudahDikembalikan = $pembayaran && !empty($pembayaran->stok_dikembalikan_at);
+
+                if (!$stokSudahDikembalikan && $header->status_pembayaran !== 'Lunas') {
+                    foreach ($oldDetails as $old) {
+                        DB::table('master_barang')
+                            ->where('kode_barang', $old->kode_barang)
+                            ->increment('kapasitas', (float) $old->qty);
+                    }
+
+                    if ($pembayaran) {
+                        DB::table('pembayaran_penjualan')
+                            ->where('kode_pesanan', $kode_pesanan)
+                            ->whereNull('deleted_at')
+                            ->update([
+                                'stok_dikembalikan_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                    }
                 }
 
                 DB::table('transaksi_penjualan_detail')
                     ->where('kode_pesanan', $kode_pesanan)
-                    ->delete();
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'deleted_at' => now(),
+                        'deleted_by' => $user->kode_user ?? null,
+                    ]);
 
                 DB::table('pembayaran_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
-                    ->delete();
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'deleted_at' => now(),
+                        'deleted_by' => $user->kode_user ?? null,
+                        'updated_at' => now(),
+                    ]);
 
                 DB::table('transaksi_penjualan')
                     ->where('kode_pesanan', $kode_pesanan)
-                    ->delete();
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'status_pesanan' => 'Batal',
+                        'deleted_at' => now(),
+                        'deleted_by' => $user->kode_user ?? null,
+                    ]);
 
                 LogAktivitasHelper::simpan(
                     $kode_pesanan,
                     'transaksi_penjualan',
-                    'DELETE',
+                    'SOFT_DELETE',
                     [
                         'header' => $header,
-                        'detail' => $oldDetails
+                        'pembayaran' => $pembayaran,
+                        'detail' => $oldDetails,
                     ],
-                    null,
+                    [
+                        'deleted_at' => now(),
+                        'deleted_by' => $user->kode_user ?? null,
+                        'status_pesanan' => 'Batal',
+                    ],
                     null
                 );
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Transaksi penjualan berhasil dihapus.'
+                'message' => 'Transaksi penjualan berhasil dihapus menggunakan soft delete.'
             ]);
         } catch (\Throwable $e) {
             return response()->json([
